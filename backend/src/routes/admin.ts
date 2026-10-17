@@ -2877,7 +2877,20 @@ router.get("/organizations", async (req: Request, res: Response) => {
         waConfigs: { select: { phoneNumberId: true, wabaId: true } },
         gmbConfigs: { select: { locationId: true, accountId: true } },
         gmailConfigs: { select: { emailAddress: true } },
-        linkedInConfig: { select: { memberName: true, companyName: true } }
+        linkedInConfig: { select: { memberName: true, companyName: true } },
+        notifications: {
+          orderBy: { createdAt: "asc" },
+          take: 50,
+          select: {
+            id: true,
+            title: true,
+            message: true,
+            priority: true,
+            sender: true,
+            isRead: true,
+            createdAt: true,
+          }
+        }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -3266,6 +3279,51 @@ router.get("/organizations/:id/notifications", async (req: Request, res: Respons
   }
 });
 
+// POST: Customer sends message or reply to Super Admin from Profile Page
+router.post("/organizations/:id/messages", async (req: Request, res: Response) => {
+  try {
+    const orgId = req.params.id as string;
+    const { title, message, replyToId } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Message content cannot be empty" });
+    }
+
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, name: true },
+    });
+
+    if (!org) {
+      return res.status(404).json({ error: "Organization not found" });
+    }
+
+    // Determine sender display name (Client organization name)
+    const senderDisplay = `Client (${org.name})`;
+    const messageTitle = title?.trim() || (replyToId ? "Reply to Announcement" : "Message to Super Admin");
+
+    const newNotification = await (prisma as any).superAdminNotification.create({
+      data: {
+        organizationId: orgId,
+        title: messageTitle,
+        message: message.trim(),
+        priority: "client_message",
+        sender: senderDisplay,
+        isRead: false,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Message sent to Super Admin successfully!",
+      notification: newNotification,
+    });
+  } catch (error: any) {
+    console.error("Error sending message to admin:", error);
+    return res.status(500).json({ error: "Failed to send message to admin", details: error.message });
+  }
+});
+
 // GET: List all sent notifications across all organizations (for Super Admin Broadcast Audit History)
 router.get("/notifications/sent-history", async (req: Request, res: Response) => {
   try {
@@ -3320,5 +3378,80 @@ router.post("/organizations/:id/notifications/read-all", async (req: Request, re
     return res.status(500).json({ error: "Failed to mark all as read", details: error.message });
   }
 });
+
+// POST: Trigger automated renewal reminder check (can also be invoked via internal cron)
+router.post("/trigger-renewal-reminders", async (req: Request, res: Response) => {
+  try {
+    const result = await checkAndDispatchRenewalReminders();
+    return res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    console.error("Error triggering renewal reminders:", error);
+    return res.status(500).json({ error: "Failed to trigger reminders", details: error.message });
+  }
+});
+
+// Helper: Check subscriptions expiring in <= 14 days and send reminder notification if not already sent recently
+export async function checkAndDispatchRenewalReminders() {
+  const now = new Date();
+  const fourteenDaysLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+  // Find active subscriptions expiring within 14 days
+  const expiringSubs = await (prisma as any).subscription.findMany({
+    where: {
+      status: "ACTIVE",
+      endDate: {
+        gte: now,
+        lte: fourteenDaysLater,
+      },
+    },
+    include: {
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          users: { select: { id: true, email: true, name: true, phone: true } },
+        },
+      },
+    },
+  });
+
+  let sentCount = 0;
+
+  for (const sub of expiringSubs) {
+    const org = sub.organization;
+    if (!org) continue;
+
+    const daysLeft = Math.max(0, Math.ceil((new Date(sub.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+
+    // Prevent duplicate reminders within the last 48 hours for the same org
+    const recentReminder = await (prisma as any).superAdminNotification.findFirst({
+      where: {
+        organizationId: org.id,
+        title: { contains: "Renewal" },
+        createdAt: { gte: new Date(now.getTime() - 48 * 60 * 60 * 1000) },
+      },
+    });
+
+    if (!recentReminder) {
+      const title = `⚠️ Annual Plan Renewal Notice (${daysLeft} days remaining)`;
+      const message = `Hello ${org.name},\n\nYour 12-month Annual Plan subscription is set to expire on ${new Date(sub.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} (${daysLeft} days remaining).\n\nTo ensure uninterrupted WhatsApp automation, AI agent workflows, and ad campaign continuity, please contact your account manager or platform administrator to renew your annual license.`;
+
+      await (prisma as any).superAdminNotification.create({
+        data: {
+          organizationId: org.id,
+          title,
+          message,
+          priority: daysLeft <= 3 ? "urgent" : "high",
+          sender: "Super Admin (Automated Renewal System)",
+          isRead: false,
+        },
+      });
+
+      sentCount++;
+    }
+  }
+
+  return { checkedCount: expiringSubs.length, remindersSent: sentCount };
+}
 
 export default router;

@@ -52,7 +52,10 @@ import {
   Inbox,
   Play,
   Pause,
-  RotateCw
+  RotateCw,
+  Send,
+  Reply,
+  CornerDownRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -133,30 +136,6 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:500
 
 const TIERS = [
   {
-    code: "quarterly",
-    name: "Quarterly Plan",
-    durationLabel: "3 Months Access",
-    durationMonths: 3,
-    basePrice: 5999,
-    effectiveMonthlyRate: 2000,
-    tagline: "Essential starter setup for growing brands.",
-    savingsText: "Standard Quarterly Rate",
-    badge: "Agile Starter",
-    pillClass: "bg-slate-100 text-slate-700",
-  },
-  {
-    code: "half_yearly",
-    name: "Half-Yearly Plan",
-    durationLabel: "6 Months Access",
-    durationMonths: 6,
-    basePrice: 9999,
-    effectiveMonthlyRate: 1667,
-    tagline: "Balanced scale and marketing continuity.",
-    savingsText: "Save ~17% vs Quarterly",
-    badge: "Growing Teams",
-    pillClass: "bg-emerald-100 text-emerald-800",
-  },
-  {
     code: "annual",
     name: "Annual Plan",
     durationLabel: "1 Year / 12 Months",
@@ -213,10 +192,15 @@ export default function ProfilePage() {
   const [pendingBusinessName, setPendingBusinessName] = useState<string>("");
   const [suspensionReason, setSuspensionReason] = useState<string>("");
 
-  // Super Admin Notifications State
+  // Super Admin Notifications & Customer Reply State
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotificationsModal, setShowNotificationsModal] = useState<boolean>(false);
   const [fetchingNotifications, setFetchingNotifications] = useState<boolean>(false);
+  const [isComposingMessage, setIsComposingMessage] = useState<boolean>(false);
+  const [replyingToNotif, setReplyingToNotif] = useState<NotificationItem | null>(null);
+  const [msgTitle, setMsgTitle] = useState<string>("");
+  const [msgBody, setMsgBody] = useState<string>("");
+  const [sendingMsg, setSendingMsg] = useState<boolean>(false);
 
   // 12 CRM Modules Circle Rotation State
   const [activeModuleIndex, setActiveModuleIndex] = useState<number>(0);
@@ -503,6 +487,51 @@ export default function ProfilePage() {
     }
   };
 
+  const handleInitiateReply = (notif: NotificationItem) => {
+    setReplyingToNotif(notif);
+    setMsgTitle(`Re: ${notif.title || "Super Admin Announcement"}`);
+    setMsgBody("");
+    setIsComposingMessage(true);
+  };
+
+  const handleSendMessageToAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orgId || !msgBody.trim()) return;
+
+    setSendingMsg(true);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/organizations/${orgId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: msgTitle.trim() || "Message from Client",
+          message: msgBody.trim(),
+          replyToId: replyingToNotif?.id || null,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to send message to Super Admin");
+      }
+
+      // Add to notifications list locally and refresh
+      if (data.notification) {
+        setNotifications(prev => [data.notification, ...prev]);
+      }
+      setMsgTitle("");
+      setMsgBody("");
+      setReplyingToNotif(null);
+      setIsComposingMessage(false);
+      setActionMsg({ text: "Message transmitted to Super Admin successfully!", type: "success" });
+    } catch (err: any) {
+      console.error("Failed to send message to admin:", err);
+      setActionMsg({ text: err.message || "Failed to transmit message.", type: "error" });
+    } finally {
+      setSendingMsg(false);
+    }
+  };
+
   const handleLogout = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("user_role");
@@ -517,7 +546,7 @@ export default function ProfilePage() {
   const isExpired = sub?.endDate ? new Date(sub.endDate).getTime() < Date.now() : false;
 
   // Selected tier calculations for upgrade section
-  const selectedTier = TIERS.find((t) => t.code === selectedPlanCode) || TIERS[2];
+  const selectedTier = TIERS.find((t) => t.code === selectedPlanCode) || TIERS[0];
   const extraChannelsCost = extraChannels * 2000;
   const upgradeSubtotal = selectedTier.basePrice + extraChannelsCost;
   const upgradeGst = Math.round(upgradeSubtotal * 0.18 * 100) / 100;
@@ -659,7 +688,11 @@ export default function ProfilePage() {
           {/* Super Admin Notifications Bell */}
           <div className="relative">
             <button
-              onClick={() => setShowNotificationsModal(true)}
+              onClick={() => {
+                setIsComposingMessage(false);
+                setReplyingToNotif(null);
+                setShowNotificationsModal(true);
+              }}
               className="relative p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-all shadow-2xs cursor-pointer flex items-center justify-center"
               title="Super Admin Messages & Broadcasts"
             >
@@ -672,22 +705,22 @@ export default function ProfilePage() {
             </button>
           </div>
 
+          {/* Quick Message Admin Action Button */}
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              const upgradeEl = document.getElementById("upgrade-section");
-              if (upgradeEl) {
-                setIsUpgradeSectionOpen(true);
-                upgradeEl.scrollIntoView({ behavior: "smooth" });
-              } else {
-                setIsUpgradeSectionOpen(true);
-              }
+              setReplyingToNotif(null);
+              setMsgTitle("");
+              setMsgBody("");
+              setIsComposingMessage(true);
+              setShowNotificationsModal(true);
             }}
-            className="border-sky-300 text-brand-blue hover:bg-sky-50 font-bold text-xs shadow-2xs"
+            className="border-sky-300 text-brand-blue hover:bg-sky-50 font-bold text-xs shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            title="Send direct message or inquiry to Super Admin"
           >
-            <Sparkles className="w-3.5 h-3.5 mr-1" />
-            Upgrade / Renew
+            <Send className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Message Admin</span>
           </Button>
 
           <Button
@@ -999,22 +1032,6 @@ export default function ProfilePage() {
                 {sub?.planName || "Annual Complete Growth Plan"}
               </h2>
             </div>
-
-            <Button
-              type="button"
-              onClick={() => {
-                setIsUpgradeSectionOpen(!isUpgradeSectionOpen);
-                if (!isUpgradeSectionOpen) {
-                  setTimeout(() => {
-                    document.getElementById("upgrade-section")?.scrollIntoView({ behavior: "smooth" });
-                  }, 100);
-                }
-              }}
-              className="bg-brand-blue hover:bg-brand-blue-deep text-white font-bold text-xs py-2 px-4 rounded-xl shadow-md shadow-brand-blue/20 flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>{isUpgradeSectionOpen ? "Close Plan Selector" : "Queue / Upgrade Plan"}</span>
-              <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isUpgradeSectionOpen ? "rotate-90" : ""}`} />
-            </Button>
           </div>
 
           {/* Subscription Content (Light Theme) */}
@@ -1183,163 +1200,6 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
-
-        {/* ── Upgrade & Renewal Section (Opens in-place without forcing full redirect) ── */}
-        {isUpgradeSectionOpen && (
-          <section id="upgrade-section" className="p-6 sm:p-8 rounded-3xl bg-white border-2 border-brand-blue shadow-xl shadow-brand-blue/10 animate-in fade-in space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-brand-blue text-xs font-bold shadow-2xs mb-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>WORKSPACE PLAN MODIFICATION</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  Select New Tier or Renew Validity
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Choose your duration. Your active workspace will instantly extend with all 12 modules uninterrupted.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-500">Extra Channels:</span>
-                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-1 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => setExtraChannels(Math.max(0, extraChannels - 1))}
-                    disabled={extraChannels === 0}
-                    className="p-1 rounded-lg hover:bg-slate-200 disabled:opacity-30 text-slate-700 cursor-pointer"
-                  >
-                    -
-                  </button>
-                  <span className="w-6 text-center text-xs font-bold text-slate-900">{extraChannels}</span>
-                  <button
-                    type="button"
-                    onClick={() => setExtraChannels(extraChannels + 1)}
-                    className="p-1 rounded-lg hover:bg-slate-200 text-slate-700 cursor-pointer"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 3 Tier Selector Cards inside Profile */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
-              {TIERS.map((tier) => {
-                const isSelected = selectedPlanCode === tier.code;
-                const isRec = tier.isRecommended;
-                const tierCost = tier.basePrice + extraChannelsCost;
-                const tierGst = Math.round(tierCost * 0.18 * 100) / 100;
-                const tierTotal = Math.round((tierCost + tierGst) * 100) / 100;
-
-                return (
-                  <div
-                    key={tier.code}
-                    onClick={() => setSelectedPlanCode(tier.code)}
-                    className={`relative p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-4 ${
-                      isSelected
-                        ? isRec
-                          ? "border-brand-blue bg-gradient-to-b from-sky-50/80 to-white shadow-xl ring-2 ring-brand-blue/30 -translate-y-1"
-                          : "border-brand-blue bg-sky-50/50 shadow-md ring-2 ring-brand-blue/20"
-                        : isRec
-                        ? "border-sky-300 bg-sky-50/30 hover:border-brand-blue/60 shadow-sm"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
-                  >
-                    {/* Top Badge */}
-                    {isRec ? (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                        <span className="px-3 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-brand-blue to-emerald-600 text-white uppercase tracking-wider shadow-xs flex items-center gap-1">
-                          <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
-                          {tier.badge}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="absolute -top-2.5 right-4">
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${tier.pillClass}`}>
-                          {tier.badge}
-                        </span>
-                      </div>
-                    )}
-
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-black text-slate-900 text-base">{tier.name}</h4>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1">{tier.tagline}</p>
-                      
-                      {/* Price Block */}
-                      <div className="pt-3">
-                        <div className="flex items-baseline justify-between">
-                          <div>
-                            <span className="text-2xl font-black text-slate-900">₹{tier.basePrice.toLocaleString("en-IN")}</span>
-                            <span className="text-[10px] text-slate-500 ml-1">/ {tier.durationMonths} Mo</span>
-                          </div>
-                          <span className={`text-xs font-black ${isRec ? "text-emerald-700" : "text-slate-600"}`}>
-                            ~₹{tier.effectiveMonthlyRate.toLocaleString("en-IN")}/mo
-                          </span>
-                        </div>
-                        <div className="mt-1.5 flex items-center justify-between">
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                            isRec ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
-                          }`}>
-                            {tier.savingsText}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-600 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Base + {extraChannels} Extra:</span>
-                        <span className="font-semibold">₹{tierCost.toLocaleString("en-IN")}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>GST (18%):</span>
-                        <span className="font-semibold">₹{tierGst.toLocaleString("en-IN")}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200/60 pt-1">
-                        <span>Total Payable:</span>
-                        <span className={isRec ? "text-brand-blue font-black" : "text-slate-900"}>
-                          ₹{tierTotal.toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Upgrade CTA Bar */}
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
-                <p className="text-xs text-slate-500">Selected for Renewal / Upgrade:</p>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-lg font-black text-slate-900">{selectedTier.name}</span>
-                  <span className="text-sm font-bold text-brand-blue">₹{upgradeTotal.toLocaleString("en-IN")} (incl. 18% GST)</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <Button
-                  variant="ghost"
-                  onClick={() => setIsUpgradeSectionOpen(false)}
-                  className="font-bold text-xs text-slate-600"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  disabled={isProcessingUpgrade}
-                  onClick={handleProceedUpgrade}
-                  className="w-full sm:w-auto bg-brand-blue hover:bg-brand-blue-deep text-white font-bold text-xs py-2.5 px-6 rounded-xl shadow-md shadow-brand-blue/20"
-                >
-                  {isProcessingUpgrade ? "Processing..." : `Confirm & Pay ₹${upgradeTotal.toLocaleString("en-IN")}`}
-                </Button>
-              </div>
-            </div>
-          </section>
-        )}
 
         {/* ── Active CRM Services & Workspace Capabilities (Cockpit Style) ── */}
         {(() => {
@@ -2001,18 +1861,18 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900 tracking-tight">
-                    Super Admin Announcements
+                    Super Admin Communication
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
-                    Direct broadcasts and alerts from platform management
+                    Announcements, broadcasts, and direct messages with management
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {notifications.some(n => !n.isRead) && (
+                {!isComposingMessage && notifications.some(n => !n.isRead) && (
                   <button
                     onClick={handleMarkAllRead}
-                    className="text-[11px] text-sky-600 hover:text-sky-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                    className="text-[11px] text-sky-600 hover:text-sky-700 font-bold hover:underline cursor-pointer flex items-center gap-1 mr-2"
                   >
                     <CheckCheck className="w-3.5 h-3.5" /> Mark all read
                   </button>
@@ -2026,97 +1886,301 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* Notifications List */}
-            <div className="overflow-y-auto space-y-3 flex-1 pr-1">
-              {fetchingNotifications ? (
-                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
-                  <RefreshCw className="w-6 h-6 animate-spin text-sky-600" />
-                  <span className="text-xs font-semibold">Loading messages...</span>
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="py-12 flex flex-col items-center justify-center text-center p-6 space-y-2">
-                  <div className="p-3 rounded-full bg-slate-50 border border-slate-200 text-slate-400">
-                    <Bell className="w-6 h-6" />
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-700">No announcements yet</h4>
-                  <p className="text-xs text-slate-400 max-w-xs">
-                    Whenever Super Admin transmits a broadcast, alert, or update, it will appear here with the exact timestamp.
-                  </p>
-                </div>
-              ) : (
-                notifications.map((notif) => {
-                  const dateStr = new Date(notif.createdAt).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  });
-                  const timeStr = new Date(notif.createdAt).toLocaleTimeString("en-IN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  });
+            {/* Navigation Tabs between Feed and Compose */}
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsComposingMessage(false);
+                  setReplyingToNotif(null);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  !isComposingMessage
+                    ? "bg-slate-900 text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>Messages & Alerts</span>
+                {notifications.length > 0 && (
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                    !isComposingMessage ? "bg-slate-700 text-white" : "bg-slate-200 text-slate-700"
+                  }`}>
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
 
-                  return (
-                    <div
-                      key={notif.id}
-                      onClick={() => !notif.isRead && handleMarkNotificationRead(notif.id)}
-                      className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 ${
-                        notif.isRead
-                          ? "bg-slate-50/70 border-slate-200/80 text-slate-600"
-                          : "bg-sky-50/40 border-sky-200 text-slate-900 shadow-xs"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          {!notif.isRead && (
-                            <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse" />
-                          )}
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
-                            notif.priority === "urgent"
-                              ? "bg-rose-100 text-rose-800 border-rose-300"
-                              : notif.priority === "high"
-                              ? "bg-amber-100 text-amber-800 border-amber-300"
-                              : "bg-sky-100 text-sky-800 border-sky-300"
-                          }`}>
-                            {notif.priority || "Announcement"}
-                          </span>
-                          <span className="text-xs font-black text-slate-900">
-                            {notif.title || "Super Admin Broadcast"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium shrink-0">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span>{dateStr} at {timeStr}</span>
-                        </div>
-                      </div>
-
-                      <p className="text-xs text-slate-700 leading-relaxed font-medium pl-4 border-l-2 border-sky-200">
-                        {notif.message}
-                      </p>
-
-                      <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400">
-                        <span>Sender: <strong>{notif.sender || "Super Admin"}</strong></span>
-                        {notif.isRead ? (
-                          <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                            <Check className="w-3 h-3" /> Read
-                          </span>
-                        ) : (
-                          <span className="text-sky-700 font-bold">Click to mark read</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setReplyingToNotif(null);
+                  setMsgTitle("");
+                  setMsgBody("");
+                  setIsComposingMessage(true);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isComposingMessage
+                    ? "bg-brand-blue text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{replyingToNotif ? "Reply to Announcement" : "Send Message to Admin"}</span>
+              </button>
             </div>
 
+            {/* Active Content: Either Compose / Reply Form OR Notifications Feed */}
+            {isComposingMessage ? (
+              <form onSubmit={handleSendMessageToAdmin} className="space-y-4 py-1 flex-1 flex flex-col">
+                {replyingToNotif && (
+                  <div className="p-3 rounded-2xl bg-sky-50/70 border border-sky-200 flex items-start justify-between gap-3 text-xs">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 text-sky-800 font-bold">
+                        <CornerDownRight className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Replying to: {replyingToNotif.title || "Super Admin Announcement"}</span>
+                      </div>
+                      <p className="text-slate-600 line-clamp-2 italic text-[11px] pl-5">
+                        &ldquo;{replyingToNotif.message}&rdquo;
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyingToNotif(null);
+                        setMsgTitle("");
+                      }}
+                      className="text-slate-400 hover:text-slate-600 text-xs font-semibold cursor-pointer shrink-0"
+                    >
+                      Clear Reply
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700">Subject / Title</label>
+                  <input
+                    type="text"
+                    value={msgTitle}
+                    onChange={(e) => setMsgTitle(e.target.value)}
+                    placeholder="e.g. Plan question, technical help, billing inquiry..."
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:outline-hidden focus:border-brand-blue"
+                  />
+                </div>
+
+                <div className="space-y-1.5 flex-1 flex flex-col">
+                  <label className="text-xs font-bold text-slate-700">
+                    Your Message <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={5}
+                    value={msgBody}
+                    onChange={(e) => setMsgBody(e.target.value)}
+                    placeholder="Write your message or reply to the Super Admin here..."
+                    className="w-full p-3.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-hidden focus:border-brand-blue resize-none flex-1"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setIsComposingMessage(false);
+                      setReplyingToNotif(null);
+                    }}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                  >
+                    Cancel
+                  </Button>
+
+                  <Button
+                    type="submit"
+                    disabled={sendingMsg || !msgBody.trim()}
+                    size="sm"
+                    className="bg-brand-blue hover:bg-sky-700 text-white font-bold text-xs gap-1.5 px-4 shadow-sm"
+                  >
+                    {sendingMsg ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>{replyingToNotif ? "Send Reply" : "Send Message to Admin"}</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              /* Notifications List */
+              <div className="overflow-y-auto space-y-3 flex-1 pr-1 max-h-[50vh]">
+                {fetchingNotifications ? (
+                  <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+                    <RefreshCw className="w-6 h-6 animate-spin text-sky-600" />
+                    <span className="text-xs font-semibold">Loading messages...</span>
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <div className="py-12 flex flex-col items-center justify-center text-center p-6 space-y-3">
+                    <div className="p-3 rounded-full bg-slate-50 border border-slate-200 text-slate-400">
+                      <Bell className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-slate-700">No messages yet</h4>
+                      <p className="text-xs text-slate-400 max-w-xs">
+                        Whenever Super Admin transmits a broadcast or announcement, it will appear here. You can also send a direct inquiry to Admin anytime.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setReplyingToNotif(null);
+                        setMsgTitle("");
+                        setMsgBody("");
+                        setIsComposingMessage(true);
+                      }}
+                      className="text-xs font-bold gap-1.5 border-sky-300 text-brand-blue hover:bg-sky-50"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Write Message to Admin</span>
+                    </Button>
+                  </div>
+                ) : (
+                  notifications.map((notif) => {
+                    const isClientMsg = notif.priority === "client_message" || (notif.sender && notif.sender.toLowerCase().startsWith("client"));
+                    const dateStr = new Date(notif.createdAt).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    });
+                    const timeStr = new Date(notif.createdAt).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+
+                    return (
+                      <div
+                        key={notif.id}
+                        onClick={() => !notif.isRead && handleMarkNotificationRead(notif.id)}
+                        className={`p-4 rounded-2xl border transition-all space-y-2.5 ${
+                          isClientMsg
+                            ? "bg-slate-50/90 border-slate-200 text-slate-800 ml-4 shadow-2xs"
+                            : notif.isRead
+                            ? "bg-white border-slate-200/80 text-slate-600"
+                            : "bg-sky-50/40 border-sky-200 text-slate-900 shadow-xs"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {!notif.isRead && !isClientMsg && (
+                              <span className="w-2 h-2 rounded-full bg-sky-600 animate-pulse" />
+                            )}
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${
+                              isClientMsg
+                                ? "bg-purple-100 text-purple-800 border-purple-300"
+                                : notif.priority === "urgent"
+                                ? "bg-rose-100 text-rose-800 border-rose-300"
+                                : notif.priority === "high"
+                                ? "bg-amber-100 text-amber-800 border-amber-300"
+                                : "bg-sky-100 text-sky-800 border-sky-300"
+                            }`}>
+                              {isClientMsg ? "Your Message to Admin" : notif.priority || "Announcement"}
+                            </span>
+                            <span className="text-xs font-black text-slate-900">
+                              {notif.title || (isClientMsg ? "Direct Inquiry" : "Super Admin Broadcast")}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium shrink-0">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            <span>{dateStr} at {timeStr}</span>
+                          </div>
+                        </div>
+
+                        <p className={`text-xs leading-relaxed font-medium pl-3.5 border-l-2 ${
+                          isClientMsg
+                            ? "border-purple-300 text-slate-700"
+                            : "border-sky-300 text-slate-800"
+                        }`}>
+                          {notif.message}
+                        </p>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-500">
+                          <div className="flex items-center gap-2">
+                            <span>From: <strong className="text-slate-700">{isClientMsg ? "You (Client)" : notif.sender || "Super Admin"}</strong></span>
+                            {!isClientMsg && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleInitiateReply(notif);
+                                }}
+                                className="px-2 py-0.5 rounded-md bg-sky-100 hover:bg-sky-200 text-sky-800 font-bold border border-sky-300 flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <Reply className="w-2.5 h-2.5" />
+                                <span>Reply</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {isClientMsg ? (
+                            <span className="text-slate-400 font-medium flex items-center gap-1">
+                              <CheckCheck className="w-3 h-3 text-sky-600" /> Delivered to Super Admin
+                            </span>
+                          ) : notif.isRead ? (
+                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Read
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkNotificationRead(notif.id);
+                              }}
+                              className="text-sky-700 font-bold hover:underline cursor-pointer"
+                            >
+                              Mark read
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
             {/* Modal Footer */}
-            <div className="pt-3 border-t border-slate-100 flex justify-end">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              {!isComposingMessage && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setReplyingToNotif(null);
+                    setMsgTitle("");
+                    setMsgBody("");
+                    setIsComposingMessage(true);
+                  }}
+                  className="text-xs font-bold gap-1.5 border-sky-300 text-brand-blue hover:bg-sky-50"
+                >
+                  <Send className="w-3 h-3" />
+                  <span>Send New Message to Admin</span>
+                </Button>
+              )}
+              {isComposingMessage && <div />}
+
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowNotificationsModal(false)}
-                className="text-xs font-bold"
+                className="text-xs font-bold ml-auto"
               >
                 Close
               </Button>

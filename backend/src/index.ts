@@ -121,6 +121,7 @@ app.use("/api/ai-agent", aiAgentRouter);
 // WhatsApp Drip Campaign Router
 import whatsappDripRouter from "./routes/whatsappDrip";
 import { WhatsAppDripEngine } from "./services/whatsappDripService";
+import { checkAndDispatchRenewalReminders } from "./routes/admin";
 import apiKeysRouter from "./routes/apiKeys";
 import externalApiV1Router from "./routes/externalApiV1";
 
@@ -142,6 +143,20 @@ setInterval(() => {
     console.error("[BACKGROUND DRIP SCHEDULER TICK ERROR]:", err);
   });
 }, 15000);
+
+// Point 4: Background Automated Subscription Renewal Reminder Engine (Runs every 1 hour)
+setInterval(() => {
+  checkAndDispatchRenewalReminders().catch((err: any) => {
+    console.error("[RENEWAL REMINDER ENGINE ERROR]:", err);
+  });
+}, 3600000);
+
+// Run initial check 30 seconds after server boot
+setTimeout(() => {
+  checkAndDispatchRenewalReminders().catch((err: any) => {
+    console.error("[INITIAL RENEWAL CHECK ERROR]:", err);
+  });
+}, 30000);
 
 // Health check endpoints (for Render Keep-Alive cron/uptime pings)
 app.get(["/health", "/api/health"], (req, res) => {

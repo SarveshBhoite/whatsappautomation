@@ -1,5 +1,5 @@
 export interface SubscriptionPlanConfig {
-  code: "quarterly" | "half_yearly" | "annual";
+  code: "annual" | "quarterly" | "half_yearly";
   name: string;
   tagline: string;
   durationMonths: number;
@@ -33,46 +33,6 @@ export const ALL_CRM_MODULES = [
 ];
 
 export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlanConfig> = {
-  quarterly: {
-    code: "quarterly",
-    name: "Quarterly Plan",
-    tagline: "Ideal for growing businesses testing multichannel CRM automation.",
-    durationMonths: 3,
-    basePrice: 5999,
-    gstPercentage: GST_PERCENTAGE,
-    badge: "3 Months Access",
-    features: [
-      "Full 3 Months Access to All Modules (WhatsApp, Google Ads, Meta Ads, Reviews & more)",
-      "1-Click Official Meta WhatsApp Cloud API Integration",
-      "1-Click Google Ads & Meta Ads Campaign Manager",
-      "Google Business Profile 1-Click Reviews Sync & AI Auto-Reply",
-      "Visual Drag-and-Drop Chatbot Builder & Unified Team Inbox",
-      "Bring Any LLM Key: Connect OpenAI, Gemini, or Claude directly",
-      "1 Primary Connection included for each channel",
-      "Multi-Channel Scaling: Add extra channels at ₹2,000 / account"
-    ],
-    enabledModules: ALL_CRM_MODULES
-  },
-  half_yearly: {
-    code: "half_yearly",
-    name: "Half-Yearly Plan",
-    tagline: "Great balance of commitment and savings for established teams.",
-    durationMonths: 6,
-    basePrice: 9999,
-    gstPercentage: GST_PERCENTAGE,
-    badge: "6 Months Access",
-    features: [
-      "Full 6 Months Access to All Modules (WhatsApp, Google Ads, Meta Ads, Reviews & more)",
-      "1-Click Official Meta WhatsApp Cloud API Integration",
-      "1-Click Google Ads & Meta Ads Campaign Manager",
-      "Google Business Profile 1-Click Reviews Sync & AI Auto-Reply",
-      "Visual Drag-and-Drop Chatbot Builder & Unified Team Inbox",
-      "Bring Any LLM Key: Connect OpenAI, Gemini, or Claude directly",
-      "1 Primary Connection included for each channel",
-      "Multi-Channel Scaling: Add extra channels at ₹2,000 / account"
-    ],
-    enabledModules: ALL_CRM_MODULES
-  },
   annual: {
     code: "annual",
     name: "Annual Plan",

@@ -58,6 +58,7 @@ interface Organization {
   users: User[];
   subscriptions?: SubscriptionInfo[];
   paymentTransactions?: any[];
+  notifications?: SentNotificationItem[];
   waConfig?: { phoneNumberId: string; wabaId: string } | null;
   gmbConfig?: { locationId: string; accountId: string } | null;
   gmailConfig?: { emailAddress: string } | null;
@@ -153,6 +154,12 @@ export default function AdminPage() {
   const [bcastTargetStatus, setBcastTargetStatus] = useState<"ALL" | "ACTIVE" | "PENDING_APPROVAL" | "SUSPENDED">("ALL");
   const [broadcastingAll, setBroadcastingAll] = useState(false);
 
+  // Client Message Detail Modal State (When clicking bell icon on an organization)
+  const [viewingOrgMessages, setViewingOrgMessages] = useState<Organization | null>(null);
+
+  // Auto-Refresh Toggle State (Top Navigation Bar)
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
   // Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -171,23 +178,29 @@ export default function AdminPage() {
     }
   }, [router]);
 
-  const fetchOrganizations = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchOrganizations = async (isBackground = false) => {
+    if (!isBackground) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/organizations`);
       if (!res.ok) throw new Error("Failed to fetch organizations");
       const data = await res.json();
       setOrganizations(data);
     } catch (err: any) {
-      setError(err.message || "Failed to load clients");
+      if (!isBackground) {
+        setError(err.message || "Failed to load clients");
+      }
     } finally {
-      setLoading(false);
+      if (!isBackground) {
+        setLoading(false);
+      }
     }
   };
 
-  const fetchSentNotifications = async () => {
-    setLoadingSentHistory(true);
+  const fetchSentNotifications = async (isBackground = false) => {
+    if (!isBackground) setLoadingSentHistory(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/admin/notifications/sent-history`);
       if (res.ok) {
@@ -197,9 +210,9 @@ export default function AdminPage() {
         }
       }
     } catch (err) {
-      console.error("Failed to load sent notifications history:", err);
+      if (!isBackground) console.error("Failed to load sent notifications history:", err);
     } finally {
-      setLoadingSentHistory(false);
+      if (!isBackground) setLoadingSentHistory(false);
     }
   };
 
@@ -207,6 +220,18 @@ export default function AdminPage() {
     fetchOrganizations();
     fetchSentNotifications();
   }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    // Auto-polling interval: runs every 20 seconds when autoRefresh is checked
+    const pollInterval = setInterval(() => {
+      fetchOrganizations(true);
+      fetchSentNotifications(true);
+    }, 20000);
+
+    return () => clearInterval(pollInterval);
+  }, [autoRefresh]);
 
   const handleCreateOrg = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -450,6 +475,9 @@ export default function AdminPage() {
   const filteredOrgs = organizations
     .filter(org => {
       const q = searchQuery.toLowerCase().trim();
+      // Point 2: Phone number search normalization (matches +91, dashes, spaces, or raw digits)
+      const qDigits = q.replace(/\D/g, "");
+
       const matchesSearch =
         !q ||
         org.name.toLowerCase().includes(q) ||
@@ -457,11 +485,26 @@ export default function AdminPage() {
         (org.businessCategory && org.businessCategory.toLowerCase().includes(q)) ||
         (org.gstin && org.gstin.toLowerCase().includes(q)) ||
         (org.suspensionReason && org.suspensionReason.toLowerCase().includes(q)) ||
-        org.users.some(u =>
-          (u.email && u.email.toLowerCase().includes(q)) ||
-          (u.name && u.name.toLowerCase().includes(q)) ||
-          (u.phone && u.phone.toLowerCase().includes(q))
-        );
+        org.users.some(u => {
+          const userPhone = u.phone || "";
+          const userPhoneDigits = userPhone.replace(/\D/g, "");
+          return (
+            (u.email && u.email.toLowerCase().includes(q)) ||
+            (u.name && u.name.toLowerCase().includes(q)) ||
+            (userPhone && userPhone.toLowerCase().includes(q)) ||
+            (qDigits.length >= 3 && userPhoneDigits.includes(qDigits))
+          );
+        }) ||
+        (org.paymentTransactions || []).some(tx => {
+          const txPhone = tx.customerPhone || "";
+          const txPhoneDigits = txPhone.replace(/\D/g, "");
+          return (
+            (txPhone && txPhone.toLowerCase().includes(q)) ||
+            (qDigits.length >= 3 && txPhoneDigits.includes(qDigits)) ||
+            (tx.customerName && tx.customerName.toLowerCase().includes(q)) ||
+            (tx.customerEmail && tx.customerEmail.toLowerCase().includes(q))
+          );
+        });
 
       const nowTime = Date.now();
       const subs = org.subscriptions || [];
@@ -471,15 +514,10 @@ export default function AdminPage() {
         return (s.status === "ACTIVE" || !s.status) && start <= nowTime && end >= nowTime;
       }) || subs[0];
 
-      const upcomingSub = subs.find(s => {
-        const start = new Date(s.startDate).getTime();
-        return (s.status === "UPCOMING" || start > nowTime) && s.id !== activeSub?.id;
-      });
-
       const daysUntilExpiry = activeSub?.endDate ? Math.ceil((new Date(activeSub.endDate).getTime() - nowTime) / (1000 * 60 * 60 * 24)) : null;
       const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 14;
       const isPlanCompleted = activeSub?.endDate ? new Date(activeSub.endDate).getTime() < nowTime : false;
-      const isPlanRenewed = Boolean(upcomingSub) || subs.length > 1;
+      const isPlanRenewed = subs.length > 1;
 
       let matchesStatus = false;
       if (statusFilter === "ALL") {
@@ -530,29 +568,69 @@ export default function AdminPage() {
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-600 shadow-sm">
+            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-600 shadow-sm shrink-0">
               <Shield className="h-6 w-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">Super Admin Portal</h1>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-extrabold font-mono">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Super Admin Portal</h1>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10px] sm:text-xs font-extrabold font-mono">
                   MASTER CONSOLE
                 </span>
               </div>
-              <p className="text-sm text-slate-500 mt-0.5">
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                 Manage client organizations, configure allowed features &amp; provision access
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          {/* Top Refresh Control with Auto-Refresh Checkbox */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl shadow-xs">
+            <button
+              onClick={() => {
+                fetchOrganizations();
+                fetchSentNotifications();
+                showToast("✓ Admin data refreshed!");
+              }}
+              className="flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-sky-600 transition-colors cursor-pointer"
+              title="Click to refresh live client list, subscriptions & notifications"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-sky-600" : "text-slate-500"}`} />
+              <span>Refresh</span>
+            </button>
+
+            <span className="text-slate-200">|</span>
+
+            <label
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 cursor-pointer select-none"
+              title="Automatically refresh admin data every 20 seconds"
+            >
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => {
+                  setAutoRefresh(e.target.checked);
+                  showToast(e.target.checked ? "Auto-refresh enabled (20s)" : "Auto-refresh paused");
+                }}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-sky-600 focus:ring-0 cursor-pointer"
+              />
+              <span className="flex items-center gap-1">
+                Auto
+                {autoRefresh && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                )}
+              </span>
+            </label>
+          </div>
+
           <button
             onClick={() => router.push("/whatsapp")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
           >
-            <ArrowLeft className="h-4 w-4" /> Go to Workspace
+            <ArrowLeft className="h-4 w-4" />
+            <span>Workspace</span>
           </button>
 
           <button
@@ -560,27 +638,28 @@ export default function AdminPage() {
               fetchSentNotifications();
               setShowSentHistoryModal(true);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
             title="Audit all messages sent to clients and check read receipts"
           >
             <History className="h-4 w-4 text-indigo-600" />
-            <span>Sent Messages ({sentNotifications.length})</span>
+            <span>Sent ({sentNotifications.length})</span>
           </button>
 
           <button
             onClick={() => setShowBroadcastAllModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-3.5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-500/20 transition-all cursor-pointer"
             title="Send an announcement or alert notification to all client accounts at once"
           >
             <Megaphone className="h-4 w-4" />
-            <span>Broadcast to All</span>
+            <span>Broadcast</span>
           </button>
 
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-md shadow-sky-500/20 transition-all cursor-pointer"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl shadow-md shadow-sky-500/20 transition-all cursor-pointer"
           >
-            <Plus className="h-4 w-4" /> Onboard New Client
+            <Plus className="h-4 w-4" />
+            <span>Onboard New Client</span>
           </button>
         </div>
       </div>
@@ -820,14 +899,14 @@ export default function AdminPage() {
         )}
 
         {/* ── Client Activity & Plan Lifecycle Monitoring Feed ── */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-xs space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600">
+              <div className="p-2.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 shrink-0">
                 <Activity className="h-5 w-5" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-black text-slate-900 tracking-tight">
                     Client Plan Activity &amp; Lifecycle Feed
                   </h3>
@@ -836,21 +915,21 @@ export default function AdminPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
-                  Monitor upcoming plan completions, expired subscriptions, renewals, and client onboarding transactions
+                  Monitor plan expirations, active subscriptions, and client account status
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
               {/* Activity Client Search Input */}
-              <div className="relative min-w-[200px]">
+              <div className="relative flex-1 sm:min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search activity by client..."
                   value={activitySearch}
                   onChange={(e) => setActivitySearch(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 text-slate-900 text-[11px] rounded-xl pl-8 pr-6 py-1.5 outline-none transition-colors font-medium shadow-2xs"
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 text-slate-900 text-[11px] rounded-xl pl-8 pr-6 py-2 outline-none transition-colors font-medium shadow-2xs"
                 />
                 {activitySearch && (
                   <button
@@ -862,11 +941,11 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">Filter:</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-slate-400 font-bold uppercase mr-0.5">Filter:</span>
                 <button
                   onClick={() => setStatusFilter("UPCOMING_SOON")}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
+                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
                     statusFilter === "UPCOMING_SOON" ? "bg-orange-600 text-white" : "bg-orange-50 text-orange-700 hover:bg-orange-100"
                   }`}
                 >
@@ -874,19 +953,19 @@ export default function AdminPage() {
                 </button>
                 <button
                   onClick={() => setStatusFilter("COMPLETED")}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
+                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
                     statusFilter === "COMPLETED" ? "bg-rose-600 text-white" : "bg-rose-50 text-rose-700 hover:bg-rose-100"
                   }`}
                 >
                   Completed
                 </button>
                 <button
-                  onClick={() => setStatusFilter("RENEWED")}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
-                    statusFilter === "RENEWED" ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+                  onClick={() => setStatusFilter("ACTIVE")}
+                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
+                    statusFilter === "ACTIVE" ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                   }`}
                 >
-                  Renewed
+                  Active
                 </button>
               </div>
             </div>
@@ -896,7 +975,7 @@ export default function AdminPage() {
           {(() => {
             const nowTime = Date.now();
             const actQuery = activitySearch.toLowerCase().trim();
-            // Build activity items from organizations and their subscriptions / transactions
+            // Build activity items from organizations and active subscriptions
             let activityItems: any[] = [];
 
             organizations.forEach(org => {
@@ -912,17 +991,17 @@ export default function AdminPage() {
                 if (endTimestamp < nowTime) {
                   activityItems.push({
                     type: "completed",
-                    badge: "PLAN COMPLETED / EXPIRED",
+                    badge: "PLAN EXPIRED",
                     badgeClass: "bg-rose-100 text-rose-800 border-rose-300",
                     iconClass: "text-rose-600 bg-rose-50 border-rose-200",
                     icon: AlertTriangle,
                     org,
-                    title: `${org.name} plan has completed`,
-                    description: `The ${activeSub.planName} expired on ${new Date(activeSub.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.`,
+                    title: `${org.name} plan completed`,
+                    description: `Annual subscription expired on ${new Date(activeSub.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.`,
                     timestamp: endTimestamp,
                   });
                 }
-                // 2. Upcoming Soon (within 14 days)
+                // 2. Expiring Soon (within 14 days)
                 else if (daysDiff <= 14 && daysDiff >= 0) {
                   activityItems.push({
                     type: "upcoming_soon",
@@ -931,30 +1010,14 @@ export default function AdminPage() {
                     iconClass: "text-orange-600 bg-orange-50 border-orange-200",
                     icon: Clock,
                     org,
-                    title: `${org.name} plan completing upcoming soon`,
-                    description: `${activeSub.planName} finishes in ${daysDiff} day${daysDiff === 1 ? "" : "s"} on ${new Date(activeSub.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.`,
+                    title: `${org.name} plan expiring soon`,
+                    description: `Active annual plan finishes in ${daysDiff} day${daysDiff === 1 ? "" : "s"} on ${new Date(activeSub.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}.`,
                     timestamp: endTimestamp,
                   });
                 }
               }
 
-              // 3. Plan Updated / Renewal Queued
-              if (subs.length > 1) {
-                const queuedSub = subs[subs.length - 1];
-                activityItems.push({
-                  type: "renewed",
-                  badge: "PLAN RENEWED / UPGRADED",
-                  badgeClass: "bg-purple-100 text-purple-800 border-purple-300 font-black",
-                  iconClass: "text-purple-600 bg-purple-50 border-purple-200",
-                  icon: TrendingUp,
-                  org,
-                  title: `${org.name} upgraded / queued new plan`,
-                  description: `Queued ${queuedSub.planName} (₹${queuedSub.amountPaid?.toLocaleString("en-IN")}) starting ${queuedSub.startDate ? new Date(queuedSub.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "upcoming"}.`,
-                  timestamp: queuedSub.startDate ? new Date(queuedSub.startDate).getTime() : nowTime,
-                });
-              }
-
-              // 4. Pending Name Change Activity
+              // 3. Pending Name Change Activity
               if (org.pendingBusinessName && org.pendingBusinessName !== org.name) {
                 activityItems.push({
                   type: "name_change",
@@ -986,7 +1049,7 @@ export default function AdminPage() {
               return (
                 <div className="py-8 text-center text-slate-400 text-xs">
                   <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto mb-1.5" />
-                  {actQuery ? `No activity matching "${activitySearch}"` : "All active client subscriptions are healthy. No upcoming expirations or pending actions."}
+                  {actQuery ? `No activity matching "${activitySearch}"` : "All active client subscriptions are healthy. No expirations or pending actions."}
                 </div>
               );
             }
@@ -1102,15 +1165,15 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* Sort Dropdown & Order Toggle */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
+            {/* Sort Dropdown & Order Toggle & Refresh */}
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex-1 sm:flex-initial">
                 <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-[11px] text-slate-500 font-bold uppercase">Sort:</span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-transparent border-none outline-none text-xs font-bold text-slate-900 cursor-pointer"
+                  className="bg-transparent border-none outline-none text-xs font-bold text-slate-900 cursor-pointer w-full"
                 >
                   <option value="date">Date Joined</option>
                   <option value="name">Company Name (A-Z)</option>
@@ -1121,18 +1184,19 @@ export default function AdminPage() {
 
               <button
                 onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1 shrink-0"
                 title={`Sort ${sortOrder === "asc" ? "Ascending" : "Descending"}`}
               >
                 <span>{sortOrder === "asc" ? "↑ Asc" : "↓ Desc"}</span>
               </button>
 
               <button
-                onClick={fetchOrganizations}
-                className="p-2.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl transition-colors cursor-pointer"
-                title="Refresh Organizations"
+                onClick={() => fetchOrganizations()}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-700 hover:text-sky-700 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer shrink-0"
+                title="Refresh Organizations & Live Status"
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-sky-600" : ""}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-sky-600" : "text-slate-500"}`} />
+                <span>Refresh</span>
               </button>
             </div>
           </div>
@@ -1276,7 +1340,7 @@ export default function AdminPage() {
                           </button>
                           {org.subscriptions?.[0] && (
                             <span className="text-slate-600 font-semibold">
-                              Plan: <strong className="text-brand-blue">{org.subscriptions[0].planName}</strong> (₹{org.subscriptions[0].amountPaid?.toLocaleString("en-IN")})
+                              Plan: <strong className="text-brand-blue">{org.subscriptions[0].planName}</strong>
                             </span>
                           )}
                         </div>
@@ -1284,11 +1348,45 @@ export default function AdminPage() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                      {/* Bell icon for Client Messages with unread badge */}
+                      {(() => {
+                        const clientMsgs = (org.notifications || []).filter(
+                          (n) => n.priority === "client_message" || (n.sender && n.sender.toLowerCase().startsWith("client"))
+                        );
+                        const unreadCount = clientMsgs.filter((n) => !n.isRead).length;
+
+                        return (
+                          <button
+                            onClick={() => setViewingOrgMessages(org)}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                              unreadCount > 0
+                                ? "bg-amber-500 hover:bg-amber-600 border-amber-600 text-white shadow-md shadow-amber-500/30 animate-pulse"
+                                : clientMsgs.length > 0
+                                ? "bg-slate-50 hover:bg-amber-50 border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-800"
+                                : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-800"
+                            }`}
+                            title={
+                              unreadCount > 0
+                                ? `🔔 ${unreadCount} new unread client message(s)! Click to view.`
+                                : clientMsgs.length > 0
+                                ? `View ${clientMsgs.length} messages received from this client`
+                                : "View client messages inbox"
+                            }
+                          >
+                            <Bell className={`h-3.5 w-3.5 ${unreadCount > 0 ? "text-white" : "text-amber-600"}`} />
+                            <span className="inline">{unreadCount > 0 ? `${unreadCount} Msg` : "Messages"}</span>
+                            {unreadCount > 0 && (
+                              <span className="h-2 w-2 rounded-full bg-white animate-ping ml-0.5" />
+                            )}
+                          </button>
+                        );
+                      })()}
+
                       {org.status === "PENDING_APPROVAL" && (
                         <button
                           onClick={() => handleApproveOrg(org)}
-                          className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/25 transition-all cursor-pointer ring-2 ring-emerald-500/20"
+                          className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/25 transition-all cursor-pointer ring-2 ring-emerald-500/20"
                         >
                           <CheckCircle2 className="h-4 w-4" />
                           <span>Approve &amp; Activate</span>
@@ -1297,7 +1395,7 @@ export default function AdminPage() {
 
                       <button
                         onClick={() => handleOpenMessageModal(org)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer"
                         title="Send direct broadcast or announcement to this client profile"
                       >
                         <MessageSquare className="h-3.5 w-3.5 text-sky-600" />
@@ -1306,10 +1404,10 @@ export default function AdminPage() {
 
                       <button
                         onClick={() => openEditModal(org)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer"
                       >
                         <Edit3 className="h-3.5 w-3.5 text-sky-600" />
-                        <span>Manage Modules</span>
+                        <span>Modules</span>
                       </button>
 
                       <button
@@ -1385,7 +1483,7 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    {/* Column 2: Subscription Plans & Upcoming Schedule */}
+                    {/* Column 2: Subscription Plan Validity */}
                     <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                       <div className="flex items-center justify-between">
                         <p className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
@@ -1409,19 +1507,15 @@ export default function AdminPage() {
                             return (s.status === "ACTIVE" || !s.status) && start <= now && end >= now;
                           }) || subs[0];
 
-                          // Find upcoming subscription
-                          const upcomingSub = subs.find(s => {
-                            const start = new Date(s.startDate).getTime();
-                            return (s.status === "UPCOMING" || start > now) && s.id !== activeSub?.id;
-                          });
-
                           return (
                             <div className="space-y-2.5 text-xs">
                               {/* Current Plan */}
                               <div className="p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs space-y-1">
                                 <div className="flex items-center justify-between">
                                   <span className="font-black text-slate-900 text-xs">{activeSub.planName}</span>
-                                  <span className="font-extrabold text-brand-blue">₹{activeSub.amountPaid?.toLocaleString("en-IN")}</span>
+                                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                    Active Plan
+                                  </span>
                                 </div>
                                 <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
                                   <span>Active Since:</span>
@@ -1442,41 +1536,6 @@ export default function AdminPage() {
                                   </span>
                                 </div>
                               </div>
-
-                              {/* Upcoming Plan if scheduled */}
-                              {upcomingSub ? (
-                                <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200 shadow-2xs space-y-1">
-                                  <div className="flex items-center justify-between">
-                                    <span className="font-black text-emerald-900 text-xs flex items-center gap-1">
-                                      <Clock className="w-3 h-3 text-emerald-600" />
-                                      {upcomingSub.planName}
-                                    </span>
-                                    <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white px-1.5 py-0.2 rounded">
-                                      Upcoming
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between text-[11px] text-emerald-800">
-                                    <span>Starts At:</span>
-                                    <span className="font-bold">
-                                      {upcomingSub.startDate ? new Date(upcomingSub.startDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}{" "}
-                                      <span className="text-[10px] font-mono text-emerald-600">
-                                        {upcomingSub.startDate ? new Date(upcomingSub.startDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }) : ""}
-                                      </span>
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between text-[11px] text-emerald-800">
-                                    <span>Valid Until:</span>
-                                    <span className="font-bold">
-                                      {upcomingSub.endDate ? new Date(upcomingSub.endDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}{" "}
-                                      <span className="text-[10px] font-mono text-emerald-600">
-                                        {upcomingSub.endDate ? new Date(upcomingSub.endDate).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }) : ""}
-                                      </span>
-                                    </span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="text-[10px] text-slate-400 italic text-center">No queued upcoming plan</p>
-                              )}
                             </div>
                           );
                         })()
@@ -1487,25 +1546,35 @@ export default function AdminPage() {
 
                     {/* Column 3: Enabled Modules Count & Quick Preview */}
                     <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                      <div className="flex justify-between items-center">
-                        <p className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
-                          <Layers className="h-3.5 w-3.5 text-sky-600" /> Allowed Modules
-                        </p>
-                        <span className="text-xs font-extrabold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
-                          {enabledCount} / {ALL_MODULE_KEYS.length}
-                        </span>
-                      </div>
+                      {(() => {
+                        // Filter against recognized CRM modules so legacy or duplicate keys don't cause 15/12
+                        const validModules = (org.enabledModules || []).filter((m) => ALL_MODULE_KEYS.includes(m));
+                        const count = validModules.length;
 
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
-                        {org.enabledModules?.map(key => (
-                          <span
-                            key={key}
-                            className="px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 text-[10px] font-bold"
-                          >
-                            {key}
-                          </span>
-                        ))}
-                      </div>
+                        return (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                <Layers className="h-3.5 w-3.5 text-sky-600" /> Allowed Modules
+                              </p>
+                              <span className="text-xs font-extrabold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
+                                {count} / {ALL_MODULE_KEYS.length}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
+                              {validModules.map((key) => (
+                                <span
+                                  key={key}
+                                  className="px-2 py-0.5 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 text-[10px] font-bold"
+                                >
+                                  {key}
+                                </span>
+                              ))}
+                            </div>
+                          </>
+                        );
+                      })()}
 
                       {/* Connected platform icons */}
                       <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500 font-semibold">
@@ -2268,7 +2337,7 @@ export default function AdminPage() {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={fetchSentNotifications}
+                  onClick={() => fetchSentNotifications()}
                   className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                   title="Refresh sent messages history"
                 >
@@ -2426,16 +2495,33 @@ export default function AdminPage() {
                             <span>Sent on: <strong>{sentDate} at {sentTime}</strong></span>
                           </div>
 
-                          {item.isRead && readDate ? (
-                            <div className="flex items-center gap-1 text-emerald-700 font-bold">
-                              <Check className="w-3 h-3 text-emerald-600" />
-                              <span>Read on: {readDate} at {readTime}</span>
-                            </div>
-                          ) : (
-                            <span className="text-amber-700 font-semibold italic">
-                              Waiting for client to view on Profile
-                            </span>
-                          )}
+                          {(() => {
+                            const isFromClient = item.priority === "client_message" || (item.sender && item.sender.toLowerCase().startsWith("client"));
+
+                            if (item.isRead) {
+                              return (
+                                <div className="flex items-center gap-1 text-emerald-700 font-bold">
+                                  <Check className="w-3 h-3 text-emerald-600" />
+                                  <span>{isFromClient ? "Reviewed by Admin" : `Read on: ${readDate || sentDate} at ${readTime || sentTime}`}</span>
+                                </div>
+                              );
+                            }
+
+                            if (isFromClient) {
+                              return (
+                                <span className="text-amber-700 font-semibold italic flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                                  Received from client (Awaiting Admin Review)
+                                </span>
+                              );
+                            }
+
+                            return (
+                              <span className="text-amber-700 font-semibold italic">
+                                Waiting for client to view on Profile
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                     );
@@ -2597,6 +2683,271 @@ export default function AdminPage() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 7: Client Messages & Inquiries for specific organization */}
+      {viewingOrgMessages && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 max-w-2xl w-full max-h-[90vh] flex flex-col space-y-4 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-black text-slate-900 tracking-tight">
+                      Client Inquiries &amp; Messages
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-100 text-amber-900 border border-amber-300">
+                      {viewingOrgMessages.name}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Messages and replies sent by this client from their account profile
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setViewingOrgMessages(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-800 transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* WhatsApp-Style Conversation History for this specific client */}
+            <div className="overflow-y-auto space-y-3 flex-1 p-3 bg-slate-100/70 rounded-2xl border border-slate-200/80 min-h-[340px] max-h-[460px]">
+              {(() => {
+                // Get all messages between this company and admin
+                const thread = (viewingOrgMessages.notifications || []).slice().sort(
+                  (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                );
+
+                if (thread.length === 0) {
+                  return (
+                    <div className="py-16 text-center text-slate-400 text-xs space-y-2">
+                      <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+                        <MessageSquare className="w-6 h-6" />
+                      </div>
+                      <p className="font-bold text-slate-700">No message history with {viewingOrgMessages.name} yet</p>
+                      <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                        Type a message below to start a direct WhatsApp-style conversation with this client.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return thread.map((item) => {
+                  const isClient = item.priority === "client_message" || (item.sender && item.sender.toLowerCase().startsWith("client"));
+                  const sentDate = new Date(item.createdAt).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "short",
+                  });
+                  const sentTime = new Date(item.createdAt).toLocaleTimeString("en-IN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`flex flex-col ${isClient ? "items-start" : "items-end"}`}
+                    >
+                      <div
+                        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 shadow-2xs space-y-1 relative ${
+                          isClient
+                            ? "bg-white border border-slate-200/90 text-slate-900 rounded-tl-xs"
+                            : "bg-emerald-600 text-white rounded-tr-xs"
+                        }`}
+                      >
+                        {/* Header tag */}
+                        <div className="flex items-center justify-between gap-3 text-[10px] pb-1 border-b border-black/5">
+                          <span className={`font-black ${isClient ? "text-slate-700" : "text-emerald-100"}`}>
+                            {isClient ? (item.sender || viewingOrgMessages.name) : "Super Admin"}
+                          </span>
+                          {isClient && !item.isRead && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500 text-white font-extrabold uppercase text-[8px] animate-pulse">
+                              NEW
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Title if present */}
+                        {item.title && item.title !== "Message to Super Admin" && item.title !== "Important Update from Platform Admin" && (
+                          <div className={`text-[11px] font-bold ${isClient ? "text-slate-800" : "text-emerald-100"}`}>
+                            {item.title}
+                          </div>
+                        )}
+
+                        {/* Message body */}
+                        <p className={`text-xs whitespace-pre-wrap leading-relaxed font-normal ${isClient ? "text-slate-800" : "text-white"}`}>
+                          {item.message}
+                        </p>
+
+                        {/* Footer timestamp & status */}
+                        <div className={`flex items-center justify-end gap-1.5 text-[9px] pt-0.5 ${isClient ? "text-slate-400" : "text-emerald-200"}`}>
+                          <span>{sentDate}, {sentTime}</span>
+                          {!isClient && (
+                            item.isRead ? (
+                              <span className="font-bold text-white flex items-center gap-0.5">
+                                <Check className="w-3 h-3 text-sky-200" /> Read
+                              </span>
+                            ) : (
+                              <span>✓ Sent</span>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Quick mark-as-read if unread client message */}
+                      {isClient && !item.isRead && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await fetch(`${BACKEND_URL}/api/admin/notifications/${item.id}/read`, {
+                                method: "POST",
+                              });
+                              setOrganizations((prev) =>
+                                prev.map((o) =>
+                                  o.id === viewingOrgMessages.id
+                                    ? {
+                                        ...o,
+                                        notifications: (o.notifications || []).map((n) =>
+                                          n.id === item.id ? { ...n, isRead: true } : n
+                                        ),
+                                      }
+                                    : o
+                                )
+                              );
+                              setViewingOrgMessages((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      notifications: (prev.notifications || []).map((n) =>
+                                        n.id === item.id ? { ...n, isRead: true } : n
+                                      ),
+                                    }
+                                  : null
+                              );
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }}
+                          className="text-[10px] text-sky-600 hover:text-sky-800 hover:underline font-bold mt-1 ml-2 cursor-pointer"
+                        >
+                          ✓ Mark as read
+                        </button>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Instant In-Thread Reply Form (WhatsApp Style) */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const content = msgContent.trim();
+                if (!content || !viewingOrgMessages) return;
+
+                setSendingMsg(true);
+                try {
+                  const res = await fetch(`${BACKEND_URL}/api/admin/organizations/${viewingOrgMessages.id}/notifications`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title: "Admin Reply",
+                      message: content,
+                      priority: "normal",
+                    }),
+                  });
+
+                  const data = await res.json();
+                  if (!res.ok || !data.success) {
+                    throw new Error(data.error || "Failed to send message");
+                  }
+
+                  // Create new local notification item in state
+                  const newMsgItem: SentNotificationItem = {
+                    id: data.notification?.id || Math.random().toString(),
+                    organizationId: viewingOrgMessages.id,
+                    title: "Admin Reply",
+                    message: content,
+                    priority: "normal",
+                    sender: "Super Admin",
+                    isRead: false,
+                    createdAt: new Date().toISOString(),
+                  };
+
+                  setViewingOrgMessages((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          notifications: [...(prev.notifications || []), newMsgItem],
+                        }
+                      : null
+                  );
+
+                  setOrganizations((prev) =>
+                    prev.map((o) =>
+                      o.id === viewingOrgMessages.id
+                        ? {
+                            ...o,
+                            notifications: [...(o.notifications || []), newMsgItem],
+                          }
+                        : o
+                    )
+                  );
+
+                  setMsgContent("");
+                  showToast(`✓ Message sent to ${viewingOrgMessages.name}`);
+                  fetchSentNotifications(true);
+                } catch (err: any) {
+                  alert(err.message || "Failed to send message");
+                } finally {
+                  setSendingMsg(false);
+                }
+              }}
+              className="pt-2 border-t border-slate-100 flex items-center gap-2"
+            >
+              <input
+                type="text"
+                placeholder={`Type a reply to ${viewingOrgMessages.name}...`}
+                value={msgContent}
+                onChange={(e) => setMsgContent(e.target.value)}
+                className="flex-1 bg-slate-50 border border-slate-200 focus:bg-white focus:border-emerald-500 rounded-xl px-4 py-2.5 text-xs text-slate-900 outline-none transition-all font-medium"
+              />
+
+              <button
+                type="submit"
+                disabled={sendingMsg || !msgContent.trim()}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer shrink-0"
+              >
+                {sendingMsg ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                <span>Send</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setViewingOrgMessages(null);
+                  setMsgContent("");
+                }}
+                className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0"
+              >
+                Close
+              </button>
+            </form>
           </div>
         </div>
       )}
