@@ -238,11 +238,11 @@ router.post("/config", async (req, res) => {
   }
 });
 
-// Real Google OAuth: Redirect to Google Consent screen
+// Real Google OAuth: Redirect to Google Consent screen for Google Business Profile (GMB) only
 router.get("/oauth/connect", (req, res) => {
   try {
     const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
-    const redirectPath = (req.query.redirect as string) || "/";
+    const redirectPath = (req.query.redirect as string) || "/gmb";
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
 
@@ -250,21 +250,14 @@ router.get("/oauth/connect", (req, res) => {
       return res.status(400).send("GOOGLE_CLIENT_ID is not configured in backend .env");
     }
 
-    // Include GMB, Google Ads, Google Calendar, Google Merchant Center, YouTube, and userinfo profile scopes in one OAuth consent screen
+    // Isolated GMB & Google Reviews scopes ONLY
     const scopes = [
       "https://www.googleapis.com/auth/userinfo.profile",
       "https://www.googleapis.com/auth/userinfo.email",
-      "https://www.googleapis.com/auth/business.manage",
-      "https://www.googleapis.com/auth/adwords",
-      "https://www.googleapis.com/auth/calendar.events",
-      "https://www.googleapis.com/auth/calendar",
-      "https://www.googleapis.com/auth/content",
-      "https://www.googleapis.com/auth/youtube.readonly"
+      "https://www.googleapis.com/auth/business.manage"
     ].join(" ");
     
-    // Pass orgId, redirect path, and source in the state parameter
-    const source = (req.query.source as string) || (redirectPath.startsWith("/ads") ? "google_ads" : "crm");
-    const statePayload = JSON.stringify({ orgId, redirect: redirectPath, source });
+    const statePayload = JSON.stringify({ orgId, redirect: redirectPath, module: "gmb" });
     const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(statePayload)}`;
     
     res.redirect(oauthUrl);
@@ -273,28 +266,33 @@ router.get("/oauth/connect", (req, res) => {
   }
 });
 
-// Real Google OAuth: Handle OAuth Code Callback from Google
+// Real Google OAuth: Handle OAuth Code Callback from Google for GMB only
 router.get("/oauth/callback", async (req, res) => {
   const code = req.query.code as string;
   const stateStr = req.query.state as string;
   
   let orgId = DEFAULT_ORG_ID;
-  let redirectPath = "/";
-  let source = "";
+  let redirectPath = "/gmb";
+  let targetModule = "gmb";
 
   if (stateStr) {
     try {
       const parsed = JSON.parse(stateStr);
       orgId = parsed.orgId || DEFAULT_ORG_ID;
-      redirectPath = parsed.redirect || "/";
-      source = parsed.source || "";
+      redirectPath = parsed.redirect || "/gmb";
+      targetModule = parsed.module || "gmb";
     } catch {
       orgId = stateStr;
     }
   }
 
-  // Auto-connect for Merchant Center and Mobile App applies ONLY when connecting from Google Ads page (/ads)
-  const isFromAdsPage = source === "google_ads" || redirectPath.startsWith("/ads");
+  // If callback was initiated for Google Ads or Merchant, redirect internally to their dedicated handlers
+  if (targetModule === "google_ads") {
+    return res.redirect(`/api/ads/oauth/callback?code=${encodeURIComponent(code as string)}&state=${encodeURIComponent(stateStr)}`);
+  }
+  if (targetModule === "google_merchant") {
+    return res.redirect(`/api/ads/merchant/oauth/callback?code=${encodeURIComponent(code as string)}&state=${encodeURIComponent(stateStr)}`);
+  }
 
   if (!code) {
     return res.status(400).send("No authorization code returned from Google");
@@ -367,28 +365,6 @@ router.get("/oauth/callback", async (req, res) => {
       console.warn("Could not discover GMB accounts:", apiErr.message);
     }
 
-    // Auto-discover Google Ads Customer ID
-    let googleAdsCustomerId: string | undefined = undefined;
-    try {
-      const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
-      const adsListRes = await axios.get(
-        "https://googleads.googleapis.com/v24/customers:listAccessibleCustomers",
-        {
-          headers: {
-            Authorization: `Bearer ${access_token}`,
-            "developer-token": DEVELOPER_TOKEN,
-            "Content-Type": "application/json"
-          }
-        }
-      );
-      const resourceNames: string[] = adsListRes.data.resourceNames || [];
-      if (resourceNames.length > 0) {
-        googleAdsCustomerId = resourceNames[0].split("/")[1];
-      }
-    } catch (adsErr: any) {
-      console.warn("[OAuth] Could not auto-discover Google Ads Customer ID:", adsErr.message);
-    }
-
     const existingConfigs = await (prisma as any).googleBusinessConfig.findMany({
       where: { organizationId: orgId }
     });
@@ -404,10 +380,10 @@ router.get("/oauth/callback", async (req, res) => {
               googleRefreshToken: refresh_token || match.googleRefreshToken,
               accessToken: access_token || match.accessToken,
               locationName: item.locationName || match.locationName,
-              googleAdsCustomerId: googleAdsCustomerId || match.googleAdsCustomerId,
               googleEmail: googleEmail || match.googleEmail,
               googleName: googleName || match.googleName,
-              googlePicture: googlePicture || match.googlePicture
+              googlePicture: googlePicture || match.googlePicture,
+              isActive: true
             }
           });
         } else {
@@ -419,7 +395,6 @@ router.get("/oauth/callback", async (req, res) => {
               locationName: item.locationName,
               googleRefreshToken: refresh_token || "",
               accessToken: access_token || "",
-              googleAdsCustomerId: googleAdsCustomerId || "",
               googleEmail: googleEmail || "",
               googleName: googleName || "",
               googlePicture: googlePicture || "",
@@ -433,7 +408,7 @@ router.get("/oauth/callback", async (req, res) => {
         }
       }
     } else {
-      // Fallback: Upsert default config with tokens & profile
+      // Fallback: Upsert default GMB config with tokens & profile
       const existing = existingConfigs[0];
       if (existing) {
         await (prisma as any).googleBusinessConfig.update({
@@ -441,10 +416,10 @@ router.get("/oauth/callback", async (req, res) => {
           data: {
             googleRefreshToken: refresh_token || existing.googleRefreshToken,
             accessToken: access_token || existing.accessToken,
-            googleAdsCustomerId: googleAdsCustomerId || existing.googleAdsCustomerId,
             googleEmail: googleEmail || existing.googleEmail,
             googleName: googleName || existing.googleName,
-            googlePicture: googlePicture || existing.googlePicture
+            googlePicture: googlePicture || existing.googlePicture,
+            isActive: true
           }
         });
       } else {
@@ -454,7 +429,6 @@ router.get("/oauth/callback", async (req, res) => {
             googleRefreshToken: refresh_token || "",
             accessToken: access_token || "",
             locationName: "Google Business Profile",
-            googleAdsCustomerId: googleAdsCustomerId || "",
             googleEmail: googleEmail || "",
             googleName: googleName || "",
             googlePicture: googlePicture || "",
@@ -468,312 +442,12 @@ router.get("/oauth/callback", async (req, res) => {
       }
     }
 
-    // Save or Update GoogleCalendarConfig for Google Calendar & Meet integration
-    const existingCal = await (prisma as any).googleCalendarConfig.findFirst({
-      where: { organizationId: orgId }
-    });
-    if (existingCal) {
-      await (prisma as any).googleCalendarConfig.update({
-        where: { id: existingCal.id },
-        data: {
-          accessToken: access_token || existingCal.accessToken,
-          refreshToken: refresh_token || existingCal.refreshToken,
-          googleEmail: googleEmail || existingCal.googleEmail,
-          isActive: true
-        }
-      });
-    } else {
-      await (prisma as any).googleCalendarConfig.create({
-        data: {
-          organizationId: orgId,
-          googleEmail: googleEmail || "google_account@company.com",
-          accessToken: access_token || "",
-          refreshToken: refresh_token || null,
-          selectedCalendarId: "primary",
-          calendarName: "Primary Calendar",
-          isDefault: true,
-          isActive: true
-        }
-      });
-    }
-
-    // Auto-discover Google Merchant Center accounts via Google Shopping Content API ONLY if connecting from Google Ads page
-    let discoveredMerchantId: string | null = null;
-    let discoveredStoreName: string | null = null;
-    if (isFromAdsPage) {
-      try {
-        const merchantAuthRes = await axios.get("https://shoppingcontent.googleapis.com/content/v2.1/accounts/authinfo", {
-          headers: { Authorization: `Bearer ${access_token}` }
-        });
-        const accountIdentifiers = merchantAuthRes.data?.accountIdentifiers || [];
-        if (accountIdentifiers.length > 0) {
-          // First entry can be merchantId or aggregatorId
-          const primaryAcc = accountIdentifiers[0];
-          discoveredMerchantId = primaryAcc.merchantId || primaryAcc.aggregatorId || null;
-          if (discoveredMerchantId) {
-            console.log(`[OAuth - Ads Page] Discovered Merchant Center Account ID: ${discoveredMerchantId}`);
-            try {
-              // Fetch account detail for store name
-              const accDetailRes = await axios.get(`https://shoppingcontent.googleapis.com/content/v2.1/${discoveredMerchantId}/accounts/${discoveredMerchantId}`, {
-                headers: { Authorization: `Bearer ${access_token}` }
-              });
-              discoveredStoreName = accDetailRes.data?.name || `Merchant Account ${discoveredMerchantId}`;
-            } catch (_detailErr) {
-              discoveredStoreName = `Merchant Store (${discoveredMerchantId})`;
-            }
-          }
-        }
-      } catch (mcErr: any) {
-        console.warn("[OAuth] Google Merchant Center auto-discovery check:", mcErr?.response?.data?.error?.message || mcErr.message);
-      }
-    }
-
-    // Auto-discover YouTube Channels from the linked Google account
-    const discoveredYoutubeLinks: string[] = [];
-    const discoveredYoutubeChannels: { id: string; title: string; handle?: string; url: string }[] = [];
-    try {
-      const ytChannelRes = await axios.get(
-        "https://www.googleapis.com/youtube/v3/channels?part=snippet,id&mine=true&maxResults=50",
-        { headers: { Authorization: `Bearer ${access_token}` } }
-      );
-      const channels = ytChannelRes.data?.items || [];
-      for (const ch of channels) {
-        const cid = ch.id;
-        const title = ch.snippet?.title || "My YouTube Channel";
-        const customUrl = ch.snippet?.customUrl; // e.g. @channelhandle
-        const url = customUrl
-          ? `https://www.youtube.com/${customUrl}`
-          : `https://www.youtube.com/channel/${cid}`;
-        discoveredYoutubeLinks.push(url);
-        discoveredYoutubeChannels.push({ id: cid, title, handle: customUrl || undefined, url });
-      }
-      if (discoveredYoutubeChannels.length > 0) {
-        console.log(`[OAuth] Auto-discovered ${discoveredYoutubeChannels.length} YouTube channel(s): ${discoveredYoutubeChannels.map((c: any) => c.title).join(", ")}`);
-      }
-    } catch (ytErr: any) {
-      console.warn("[OAuth] Could not auto-discover YouTube channels:", ytErr?.response?.data?.error?.message || ytErr.message);
-    }
-
-    // Re-activate all previously connected Google Ads accounts for this org.
-    // When a user reconnects after disconnecting, their old accounts should appear again.
-    const reactivatedCount = await (prisma as any).googleAdAccount.updateMany({
-      where: { organizationId: orgId },
-      data: { isActive: true }
-    });
-    console.log(`[OAuth] Re-activated ${reactivatedCount.count} Google Ads account(s) for org ${orgId}`);
-
-    // If no googleAdsCustomerId was auto-discovered, restore the first active manager account's ID
-    if (!googleAdsCustomerId) {
-      const firstManagerAccount = await (prisma as any).googleAdAccount.findFirst({
-        where: { organizationId: orgId, isManager: true }
-      });
-      if (!firstManagerAccount) {
-        // Fallback: try any account
-        const firstAccount = await (prisma as any).googleAdAccount.findFirst({
-          where: { organizationId: orgId }
-        });
-        if (firstAccount?.customerId) {
-          await (prisma as any).googleBusinessConfig.updateMany({
-            where: { organizationId: orgId },
-            data: { googleAdsCustomerId: firstAccount.customerId }
-          });
-          console.log(`[OAuth] Restored googleAdsCustomerId = ${firstAccount.customerId} for org ${orgId}`);
-        }
-      } else {
-        await (prisma as any).googleBusinessConfig.updateMany({
-          where: { organizationId: orgId },
-          data: { googleAdsCustomerId: firstManagerAccount.customerId }
-        });
-        console.log(`[OAuth] Restored manager googleAdsCustomerId = ${firstManagerAccount.customerId} for org ${orgId}`);
-      }
-    }
-
-    // Auto-connect Merchant Center and Mobile Apps ONLY when connecting from /ads
-    const targetCid = googleAdsCustomerId || existingConfigs[0]?.googleAdsCustomerId;
-    const cleanCid = targetCid ? targetCid.replace(/-/g, "").trim() : "";
-    if (isFromAdsPage && targetCid) {
-      const cleanCid = targetCid.replace(/-/g, "").trim();
-      try {
-
-        // Check if there are mobile app campaigns to link
-        const appCampaigns = await prisma.googleAdCampaign.findMany({
-          where: {
-            organizationId: orgId,
-            customerId: cleanCid,
-            OR: [
-              { campaignType: "APP" },
-              { campaignType: "APP_PROMOTION" },
-              { advertisingChannelType: "MULTI_CHANNEL" }
-            ]
-          }
-        });
-
-        const discoveredApps: any[] = [];
-        const seenAppIds = new Set<string>();
-
-        for (const camp of appCampaigns) {
-          const sig: any = camp.audienceSignal || {};
-          const appId = sig.appId || sig.packageId;
-          if (appId && !seenAppIds.has(String(appId).toLowerCase())) {
-            seenAppIds.add(String(appId).toLowerCase());
-            const isIos = /^\d+$/.test(String(appId));
-            discoveredApps.push({
-              id: `camp-app-${camp.id}`,
-              platform: (sig.platform === "IOS" || isIos) ? "IOS" : "ANDROID",
-              appId: String(appId),
-              appName: sig.appName || camp.name,
-              appUrl: sig.appUrl || (isIos ? `https://apps.apple.com/app/id${appId}` : `https://play.google.com/store/apps/details?id=${appId}`),
-              connectedAt: new Date().toISOString()
-            });
-          }
-        }
-
-        // Also query live Google Ads API for MOBILE_APP assets if developer token is available
-        const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
-        if (devToken && cleanCid) {
-          try {
-            const managerAccount = await prisma.googleAdAccount.findFirst({
-              where: { organizationId: orgId, isManager: true }
-            });
-            const loginCustomerId = managerAccount?.customerId?.replace(/-/g, "") || cleanCid;
-            const gaqlQuery = `SELECT asset.id, asset.name, asset.type, asset.mobile_app_asset.app_id, asset.mobile_app_asset.app_store FROM asset WHERE asset.type = 'MOBILE_APP' LIMIT 50`;
-            const gaqlRes = await axios.post(
-              `https://googleads.googleapis.com/v24/customers/${cleanCid}/googleAds:search`,
-              { query: gaqlQuery },
-              {
-                headers: {
-                  Authorization: `Bearer ${access_token}`,
-                  "developer-token": devToken,
-                  "Content-Type": "application/json",
-                  ...(loginCustomerId ? { "login-customer-id": loginCustomerId } : {})
-                }
-              }
-            );
-            const gaqlResults = gaqlRes.data?.results || [];
-            for (const row of gaqlResults) {
-              const a = row.asset;
-              const aId = a?.mobileAppAsset?.appId || a?.appAsset?.appId;
-              if (aId && !seenAppIds.has(String(aId).toLowerCase())) {
-                seenAppIds.add(String(aId).toLowerCase());
-                const store = a?.mobileAppAsset?.appStore || a?.appAsset?.appStore;
-                const isIos = store === "APPLE_APP_STORE" || /^\d+$/.test(String(aId));
-                discoveredApps.push({
-                  id: `live-asset-${a.id}`,
-                  platform: isIos ? "IOS" : "ANDROID",
-                  appId: String(aId),
-                  appName: a.name || `Mobile App (${aId})`,
-                  appUrl: isIos ? `https://apps.apple.com/app/id${aId}` : `https://play.google.com/store/apps/details?id=${aId}`,
-                  connectedAt: new Date().toISOString()
-                });
-              }
-            }
-          } catch (appApiErr: any) {
-            console.warn("[OAuth - Ads Page] Could not query live mobile app assets:", appApiErr?.response?.data || appApiErr.message);
-          }
-        }
-
-        const profilePatch: any = {};
-        if (discoveredMerchantId) {
-          profilePatch.hasMerchantAccount = true;
-          profilePatch.merchantCenterId = String(discoveredMerchantId);
-          profilePatch.merchantDetails = {
-            storeName: discoveredStoreName || `Merchant Account ${discoveredMerchantId}`,
-            connectedViaOAuth: true,
-            connectedAt: new Date().toISOString()
-          };
-        }
-
-        if (discoveredApps.length > 0) {
-          profilePatch.hasAppAccount = true;
-          profilePatch.appDetails = discoveredApps;
-        }
-
-        if (Object.keys(profilePatch).length > 0) {
-          const currentProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
-          await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
-            ...(currentProfile || {}),
-            ...profilePatch,
-            appDetails: [
-              ...(currentProfile?.appDetails || []),
-              ...(profilePatch.appDetails || [])
-            ].filter((v, i, a) => a.findIndex(t => t.appId?.toLowerCase() === v.appId?.toLowerCase()) === i)
-          });
-          console.log(`[OAuth - Ads Page] Auto-connected profile for ${cleanCid}: Merchant=${Boolean(profilePatch.hasMerchantAccount)}, Apps=${Boolean(profilePatch.hasAppAccount)}`);
-        }
-
-      } catch (profErr: any) {
-        console.warn("[OAuth - Ads Page] Could not auto-save Merchant/App into profile:", profErr.message);
-      }
-
-      // Separately save YouTube channels into the profile metadata (outside Merchant/Apps try-catch)
-      if (discoveredYoutubeLinks.length > 0) {
-        try {
-          // Find existing profile to merge youtube links (avoid overwriting previously added links)
-          const existingProfile = await CustomerBusinessProfileService.getProfile(orgId, cleanCid);
-          const existingLinks: string[] = existingProfile?.metadata?.youtubeLinks || [];
-          const mergedLinks = Array.from(new Set([...existingLinks, ...discoveredYoutubeLinks]));
-          // Auto-add default YouTube conversion goals if YouTube channels are connected, preserving existing goals
-          const currentGoals = Array.isArray(existingProfile?.conversionGoals) ? [...existingProfile.conversionGoals] : [];
-          const hasEngagements = currentGoals.some((g: any) =>
-            (g.goalName || g.name || "").toLowerCase().includes("engagement") ||
-            g.conversionType === "Engagements"
-          );
-          const hasYtViews = currentGoals.some((g: any) =>
-            (g.goalName || g.name || "").toLowerCase().includes("follow-on") ||
-            (g.goalName || g.name || "").toLowerCase().includes("youtube view") ||
-            g.conversionType === "YouTube follow-on views"
-          );
-
-          if (!hasEngagements) {
-            currentGoals.push({
-              id: `goal-yt-eng-${Date.now()}`,
-              goalName: "Engagements (account default)",
-              conversionType: "Engagements",
-              source: "YouTube hosted",
-              description: "Engagements (account default) YouTube hosted 1 action",
-              isPrimary: true,
-              isActive: true,
-              currency: "INR"
-            });
-          }
-
-          if (!hasYtViews) {
-            currentGoals.push({
-              id: `goal-yt-views-${Date.now() + 1}`,
-              goalName: "YouTube follow-on views (account default)",
-              conversionType: "YouTube follow-on views",
-              source: "YouTube hosted",
-              description: "YouTube follow-on views (account default) YouTube hosted 1 action",
-              isPrimary: true,
-              isActive: true,
-              currency: "INR"
-            });
-          }
-
-          await CustomerBusinessProfileService.saveProfile(orgId, cleanCid, {
-            ...(existingProfile || {}),
-            conversionGoals: currentGoals,
-            metadata: {
-              ...(existingProfile?.metadata || {}),
-              youtubeLinks: mergedLinks,
-              youtubeChannels: discoveredYoutubeChannels
-            }
-          });
-          console.log(`[OAuth] Saved ${mergedLinks.length} YouTube channel link(s) into profile for ${cleanCid}`);
-        } catch (ytSaveErr: any) {
-          console.warn("[OAuth] Could not save YouTube channels into profile:", ytSaveErr.message);
-        }
-      }
-    }
-
-    // (duplicate catch removed — restructured above)
-    // (YouTube channel discovery handled above)
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=success`);
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=success&module=gmb`);
   } catch (error: any) {
-    console.error("OAuth Token Exchange Error:", error?.response?.data || error.message);
+    console.error("GMB OAuth Token Exchange Error:", error?.response?.data || error.message);
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=error`);
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=error&module=gmb`);
   }
 });
 

@@ -62,6 +62,185 @@ router.use("/campaigns/no-guidance", requireCustomerOwnership, noGuidanceRoutes)
 router.use("/ai-guided", aiGuidedRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DEDICATED GOOGLE ADS OAUTH ROUTES
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/oauth/connect
+ * Initiates Google OAuth consent screen for GOOGLE ADS ONLY.
+ */
+router.get("/oauth/connect", (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const redirectPath = (req.query.redirect as string) || "/ads";
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
+
+    if (!clientId) {
+      return res.status(400).send("GOOGLE_CLIENT_ID is not configured in backend .env");
+    }
+
+    // Google Ads scopes ONLY
+    const scopes = [
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/adwords"
+    ].join(" ");
+
+    const statePayload = JSON.stringify({ orgId, redirect: redirectPath, module: "google_ads" });
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(statePayload)}`;
+
+    res.redirect(oauthUrl);
+  } catch (error: any) {
+    res.status(500).send(`OAuth redirection error: ${error.message}`);
+  }
+});
+
+/**
+ * GET /api/ads/oauth/callback
+ * Handles OAuth callback strictly for Google Ads.
+ */
+router.get("/oauth/callback", async (req, res) => {
+  const code = req.query.code as string;
+  const stateStr = req.query.state as string;
+
+  let orgId = DEFAULT_ORG_ID;
+  let redirectPath = "/ads";
+
+  if (stateStr) {
+    try {
+      const parsed = JSON.parse(stateStr);
+      orgId = parsed.orgId || DEFAULT_ORG_ID;
+      redirectPath = parsed.redirect || "/ads";
+    } catch {
+      orgId = stateStr;
+    }
+  }
+
+  if (!code) {
+    return res.status(400).send("No authorization code returned from Google");
+  }
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
+
+  if (!clientId || !clientSecret) {
+    return res.status(500).send("Google OAuth keys are missing from backend .env");
+  }
+
+  try {
+    const tokenRes = await axios.post("https://oauth2.googleapis.com/token", {
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code"
+    });
+
+    const { refresh_token, access_token } = tokenRes.data;
+
+    // Fetch Google user profile for display
+    let googleEmail = "";
+    let googleName = "";
+    try {
+      const profileRes = await axios.get("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      if (profileRes.data) {
+        googleEmail = profileRes.data.email || "";
+        googleName = profileRes.data.name || "";
+      }
+    } catch (e: any) {
+      console.warn("[Google Ads OAuth] Could not fetch profile:", e.message);
+    }
+
+    // Auto-discover accessible Google Ads customer IDs
+    let discoveredCustomerId = "";
+    const DEVELOPER_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || "";
+    if (DEVELOPER_TOKEN) {
+      try {
+        const adsListRes = await axios.get(
+          "https://googleads.googleapis.com/v24/customers:listAccessibleCustomers",
+          {
+            headers: {
+              Authorization: `Bearer ${access_token}`,
+              "developer-token": DEVELOPER_TOKEN,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+        const resourceNames: string[] = adsListRes.data.resourceNames || [];
+        if (resourceNames.length > 0) {
+          discoveredCustomerId = resourceNames[0].split("/")[1];
+          // Upsert discovered accounts
+          for (const rn of resourceNames) {
+            const cid = rn.split("/")[1];
+            await prisma.googleAdAccount.upsert({
+              where: { organizationId_customerId: { organizationId: orgId, customerId: cid } },
+              update: { isActive: true },
+              create: {
+                organizationId: orgId,
+                customerId: cid,
+                name: `Google Ads (${cid})`,
+                isActive: true
+              }
+            });
+          }
+        }
+      } catch (adsErr: any) {
+        console.warn("[Google Ads OAuth] Could not list accessible customers:", adsErr?.response?.data || adsErr.message);
+      }
+    }
+
+    // Reactivate existing Google Ads accounts
+    await prisma.googleAdAccount.updateMany({
+      where: { organizationId: orgId },
+      data: { isActive: true }
+    });
+
+    // Save tokens and active customer ID to GoogleBusinessConfig for ads service consumption
+    const existingConfig = await prisma.googleBusinessConfig.findFirst({
+      where: { organizationId: orgId }
+    });
+
+    if (existingConfig) {
+      await prisma.googleBusinessConfig.update({
+        where: { id: existingConfig.id },
+        data: {
+          googleRefreshToken: refresh_token || existingConfig.googleRefreshToken,
+          accessToken: access_token || existingConfig.accessToken,
+          googleAdsCustomerId: discoveredCustomerId || existingConfig.googleAdsCustomerId,
+          ...(googleEmail ? { googleEmail } : {}),
+          ...(googleName ? { googleName } : {})
+        }
+      });
+    } else {
+      await prisma.googleBusinessConfig.create({
+        data: {
+          organizationId: orgId,
+          googleRefreshToken: refresh_token || "",
+          accessToken: access_token || "",
+          googleAdsCustomerId: discoveredCustomerId || "",
+          googleEmail: googleEmail || "",
+          googleName: googleName || "",
+          locationName: "Google Ads Account",
+          isDefault: true,
+          isActive: true
+        }
+      });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=success&module=google_ads`);
+  } catch (error: any) {
+    console.error("[Google Ads OAuth Error]:", error?.response?.data || error.message);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=settings&oauth=error&module=google_ads`);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ACCOUNTS (MCC-aware)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -917,8 +1096,138 @@ router.post("/customer-profile/analyze-website", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GOOGLE MERCHANT CENTER DISCOVERY & ACCOUNTS
+// GOOGLE MERCHANT CENTER DEDICATED OAUTH & DISCOVERY
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/ads/merchant/oauth/connect
+ * Initiates Google OAuth consent screen for GOOGLE MERCHANT CENTER ONLY.
+ */
+router.get("/merchant/oauth/connect", (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const redirectPath = (req.query.redirect as string) || "/ads/profile?tab=merchant_apps";
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
+
+    if (!clientId) {
+      return res.status(400).send("GOOGLE_CLIENT_ID is not configured in backend .env");
+    }
+
+    // Google Shopping Content API scope ONLY
+    const scopes = [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/content"
+    ].join(" ");
+
+    const statePayload = JSON.stringify({ orgId, redirect: redirectPath, module: "google_merchant" });
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(statePayload)}`;
+
+    res.redirect(oauthUrl);
+  } catch (error: any) {
+    res.status(500).send(`OAuth redirection error: ${error.message}`);
+  }
+});
+
+/**
+ * GET /api/ads/merchant/oauth/callback
+ * Handles OAuth callback strictly for Google Merchant Center.
+ */
+router.get("/merchant/oauth/callback", async (req, res) => {
+  const code = req.query.code as string;
+  const stateStr = req.query.state as string;
+
+  let orgId = DEFAULT_ORG_ID;
+  let redirectPath = "/ads/profile?tab=merchant_apps";
+
+  if (stateStr) {
+    try {
+      const parsed = JSON.parse(stateStr);
+      orgId = parsed.orgId || DEFAULT_ORG_ID;
+      redirectPath = parsed.redirect || "/ads/profile?tab=merchant_apps";
+    } catch {
+      orgId = stateStr;
+    }
+  }
+
+  if (!code) {
+    return res.status(400).send("No authorization code returned from Google");
+  }
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_ADS_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
+
+  if (!clientId || !clientSecret) {
+    return res.status(500).send("Google OAuth keys are missing from backend .env");
+  }
+
+  try {
+    const tokenRes = await axios.post("https://oauth2.googleapis.com/token", {
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      redirect_uri: redirectUri,
+      grant_type: "authorization_code"
+    });
+
+    const { refresh_token, access_token } = tokenRes.data;
+
+    // Discover Merchant Center accounts via Content API
+    let discoveredMerchantId: string | null = null;
+    let discoveredStoreName: string | null = null;
+    try {
+      const merchantAuthRes = await axios.get("https://shoppingcontent.googleapis.com/content/v2.1/accounts/authinfo", {
+        headers: { Authorization: `Bearer ${access_token}` }
+      });
+      const accountIdentifiers = merchantAuthRes.data?.accountIdentifiers || [];
+      if (accountIdentifiers.length > 0) {
+        const primaryAcc = accountIdentifiers[0];
+        discoveredMerchantId = primaryAcc.merchantId || primaryAcc.aggregatorId || null;
+        if (discoveredMerchantId) {
+          try {
+            const accDetailRes = await axios.get(`https://shoppingcontent.googleapis.com/content/v2.1/${discoveredMerchantId}/accounts/${discoveredMerchantId}`, {
+              headers: { Authorization: `Bearer ${access_token}` }
+            });
+            discoveredStoreName = accDetailRes.data?.name || `Merchant Account ${discoveredMerchantId}`;
+          } catch (_detailErr) {
+            discoveredStoreName = `Merchant Store (${discoveredMerchantId})`;
+          }
+        }
+      }
+    } catch (mcErr: any) {
+      console.warn("[Merchant OAuth] Auto-discovery check:", mcErr?.response?.data?.error?.message || mcErr.message);
+    }
+
+    // Auto-update first customer profile or active ads customer profile
+    if (discoveredMerchantId) {
+      const activeAccount = await prisma.googleAdAccount.findFirst({
+        where: { organizationId: orgId, isActive: true }
+      });
+      const cid = activeAccount?.customerId ? activeAccount.customerId.replace(/-/g, "") : "";
+      if (cid) {
+        const currentProfile = await CustomerBusinessProfileService.getProfile(orgId, cid);
+        await CustomerBusinessProfileService.saveProfile(orgId, cid, {
+          ...(currentProfile || {}),
+          hasMerchantAccount: true,
+          merchantCenterId: String(discoveredMerchantId),
+          merchantDetails: {
+            storeName: discoveredStoreName || `Merchant Account ${discoveredMerchantId}`,
+            connectedViaOAuth: true,
+            connectedAt: new Date().toISOString()
+          }
+        });
+      }
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=merchant_apps&oauth=success&module=merchant`);
+  } catch (error: any) {
+    console.error("[Merchant OAuth Error]:", error?.response?.data || error.message);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    res.redirect(`${frontendUrl}${redirectPath}${redirectPath.includes("?") ? "&" : "?"}tab=merchant_apps&oauth=error&module=merchant`);
+  }
+});
 
 /**
  * GET /api/ads/merchant-accounts

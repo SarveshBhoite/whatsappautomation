@@ -10326,7 +10326,7 @@ function ProfilePageContent() {
                       ) : (
                         /* When Disconnected: Show Connect with Google button */
                         <a
-                          href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}&source=google_ads`}
+                          href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/ads/merchant/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}`}
                           className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-semibold inline-flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md"
                           title="Authorize and link Google Merchant Center via OAuth"
                         >
@@ -10528,7 +10528,7 @@ function ProfilePageContent() {
                       ) : (
                         /* When Disconnected: Show Connect with Google button */
                         <a
-                          href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}&source=google_ads`}
+                          href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/ads/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}`}
                           className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-semibold inline-flex items-center gap-2 transition-all shadow-sm cursor-pointer hover:shadow-md"
                           title="Authorize and link Google account via OAuth"
                         >

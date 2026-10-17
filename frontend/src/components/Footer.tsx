@@ -10,15 +10,15 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto">
         {/* Main Footer Row: Brand Info (Left) + Nav Links (Right) */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6">
-          
+
           {/* Brand Logo & Subtitle */}
           <div className="flex flex-col gap-2">
             <Link href="/" className="flex items-center gap-3 w-fit group">
               <div className="h-10 w-10 rounded-full overflow-hidden border border-slate-200 p-0.5 bg-white shadow-2xs flex items-center justify-center">
-                <img 
-                  src="/icon.jpeg" 
-                  alt="Jisnu CRM Logo" 
-                  className="h-full w-full object-cover rounded-full" 
+                <img
+                  src="/icon.jpeg"
+                  alt="Jisnu CRM Logo"
+                  className="h-full w-full object-cover rounded-full"
                 />
               </div>
               <span className="font-bold text-xl tracking-tight text-slate-900">
@@ -47,6 +47,9 @@ export default function Footer() {
             </Link>
             <Link href="/#comparison" className="hover:text-blue-600 transition-colors">
               Comparison
+            </Link>
+            <Link href="/pricing" className="hover:text-blue-600 transition-colors">
+              Pricing & Plans
             </Link>
             <Link href="/privacy" className="hover:text-blue-600 transition-colors">
               Privacy Policy

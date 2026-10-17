@@ -126,6 +126,9 @@ export default function LandingPage() {
             <a href="#calculator" className="hover:text-brand-blue transition-colors">
               ROI Impact
             </a>
+            <Link href="/pricing" className="hover:text-brand-blue transition-colors font-semibold">
+              Pricing & Plans
+            </Link>
           </nav>
 
           {/* Action CTAs using Clean Shadcn Button components */}
@@ -163,9 +166,9 @@ export default function LandingPage() {
               Scale Every Conversation &amp; Campaign with{" "}
               <span className="relative inline-block whitespace-nowrap mx-1 group">
                 {/* Brand Multi-Tone Ambient Aura (Brand Blue + Brand Green + Brand Orange) */}
-                <span 
-                  className="absolute -inset-1 sm:-inset-2 rounded-2xl bg-gradient-to-r from-[#0284C7] via-[#059669] to-[#EA580C] opacity-35 blur-xl animate-pulse" 
-                  aria-hidden="true" 
+                <span
+                  className="absolute -inset-1 sm:-inset-2 rounded-2xl bg-gradient-to-r from-[#0284C7] via-[#059669] to-[#EA580C] opacity-35 blur-xl animate-pulse"
+                  aria-hidden="true"
                 />
                 {/* Brand Glass Capsule with Triple Brand Colorway */}
                 <span className="relative inline-flex items-center gap-1 px-3.5 sm:px-5 py-0.5 sm:py-1 rounded-2xl bg-white/95 border border-sky-200/90 shadow-md shadow-sky-500/10 backdrop-blur-md">

@@ -7,7 +7,7 @@ const router = Router();
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || "";
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
-const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
+const REDIRECT_URI = process.env.CALENDAR_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
 
 const getOrgId = (req: Request): string => {
   return (req.headers["x-organization-id"] as string) || (req.query.orgId as string) || "demo-org-123";

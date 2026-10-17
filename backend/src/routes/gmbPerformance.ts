@@ -197,7 +197,11 @@ router.get("/", async (req, res) => {
     const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
 
     if (!clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
-      return res.status(400).json({ error: "Google Business account is not authorized or Location ID is not configured." });
+      return res.status(200).json({ 
+        authorized: false,
+        locationName: config.locationName || "Google Business Profile",
+        message: "Google Business account is not authorized or Location ID is not configured." 
+      });
     }
 
     const numericLocationId = config.googleLocationId

@@ -5065,7 +5065,7 @@ print(res.json())`;
                             className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
                           >
                             <RefreshCw className={`h-4 w-4 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                            <span>{googleOauthStatus === "connecting" ? "Connecting via Google..." : googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect with Google"}</span>
+                            <span>{googleOauthStatus === "connecting" ? "Connecting via Google..." : googleConfig.googleRefreshToken ? "Reconnect Google Business" : "Connect Google Business"}</span>
                           </button>
 
                           {googleConfig.googleRefreshToken && (
@@ -5105,11 +5105,15 @@ print(res.json())`;
                           </div>
                           <button
                             type="button"
-                            onClick={handleGoogleOAuthConnect}
+                            onClick={() => {
+                              if (typeof window !== "undefined") {
+                                window.location.href = `${BACKEND_URL}/api/gmail/oauth/connect?orgId=${getOrgId()}&redirect=/settings?tab=google`;
+                              }
+                            }}
                             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-blue-600/20 cursor-pointer flex items-center gap-1.5"
                           >
                             <Plus className="w-4 h-4 stroke-[2.5]" />
-                            Link Additional Account
+                            Link Gmail Account
                           </button>
                         </div>
 

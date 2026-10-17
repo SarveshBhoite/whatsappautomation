@@ -9788,7 +9788,7 @@ export function GoogleAdsProfileModal({
                           </>
                         ) : (
                           <a
-                            href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}&source=google_ads`}
+                            href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/ads/merchant/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}`}
                             className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-black text-white text-[11px] font-semibold inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                             title="Authorize Google Merchant Center scope via OAuth"
                           >
@@ -9954,7 +9954,7 @@ export function GoogleAdsProfileModal({
                           </>
                         ) : (
                           <a
-                            href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/gmb/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}&source=google_ads`}
+                            href={`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"}/api/ads/oauth/connect?orgId=${encodeURIComponent(orgId)}&redirect=${encodeURIComponent(`/ads/profile?customerId=${customerId}&tab=merchant_apps`)}`}
                             className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-black text-white text-[11px] font-semibold inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                             title="Authorize Google account via OAuth"
                           >

@@ -1427,9 +1427,13 @@ export default function GmbPerformanceDashboard() {
         throw new Error(errData.error || "Failed to load GMB performance metrics.");
       }
       const perfData = await res.json();
+      if (perfData.authorized === false) {
+        setData(null);
+        setError("Google Business account is not authorized or Location ID is not configured.");
+        return;
+      }
       setData(perfData);
     } catch (err: any) {
-      console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -1832,28 +1836,44 @@ export default function GmbPerformanceDashboard() {
           {/* ERROR / UNAUTHORIZED STATE */}
           {!loading && error && (
             <div className="w-full max-w-2xl mx-auto border border-slate-200 bg-white rounded-3xl p-8 text-center space-y-6 shadow-sm">
-              <AlertCircle className="h-16 w-16 text-rose-500 mx-auto stroke-1 animate-bounce" />
-              <div className="space-y-2">
-                <h2 className="text-lg font-bold text-slate-900">GMB Integration Connection Required</h2>
-                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                  We could not retrieve GMB stats. This could be because your Google account has not been authorized yet, or the Location ID is incorrect.
-                </p>
-                <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-xl max-w-md mx-auto text-xs text-rose-700 font-mono text-left leading-normal font-semibold">
-                  Error: {error}
-                </div>
+              <div className="h-16 w-16 rounded-3xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mx-auto shadow-2xs">
+                <Store className="h-8 w-8 text-amber-600" />
               </div>
-              <div className="flex justify-center gap-4">
+              <div className="space-y-2">
+                <h2 className="text-xl font-extrabold text-slate-900">Connect Your Google Business Profile</h2>
+                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                  Your Google Business location has not been authorized yet. Click the button below to connect your Google Business Profile and sync reviews, insights, posts, and Q&amp;A.
+                </p>
+                {error && !error.includes("not authorized") && (
+                  <div className="bg-rose-50 border border-rose-200 p-3.5 rounded-xl max-w-md mx-auto text-xs text-rose-700 font-mono text-left leading-normal font-semibold">
+                    Error: {error}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <a 
+                  href={`${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/gmb`}
+                  className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white text-xs font-bold px-6 py-3 rounded-xl transition-all inline-flex items-center gap-2 shadow-md shadow-teal-600/20 cursor-pointer"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>Connect with Google</span>
+                </a>
                 <button 
                   onClick={() => fetchPerformance()}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-4 py-2.5 rounded-xl transition-all cursor-pointer border border-slate-200"
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-4 py-3 rounded-xl transition-all cursor-pointer border border-slate-200"
                 >
-                  Retry Request
+                  Retry
                 </button>
                 <Link 
-                  href="/settings" 
-                  className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all inline-flex items-center gap-1.5 shadow-xs shadow-teal-600/20"
+                  href="/settings?tab=google" 
+                  className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold px-4 py-3 rounded-xl transition-all inline-flex items-center gap-1.5 shadow-2xs"
                 >
-                  Go to Settings <Settings className="h-3.5 w-3.5" />
+                  Settings <Settings className="h-3.5 w-3.5" />
                 </Link>
               </div>
             </div>

@@ -888,7 +888,7 @@ function SettingsTab({
             </button>
           )}
           <a
-            href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
+            href={`${BACKEND}/api/ads/oauth/connect?orgId=${orgId}&redirect=/ads`}
             className="text-xs px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-all font-bold shadow-2xs"
           >
             Switch Account
@@ -2218,7 +2218,7 @@ export default function GoogleAdsPage() {
               ))}
             </div>
             <a
-              href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
+              href={`${BACKEND}/api/ads/oauth/connect?orgId=${orgId}&redirect=/ads`}
               className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs transition-all shadow-sm mx-auto w-fit"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none">
@@ -2377,8 +2377,8 @@ export default function GoogleAdsPage() {
             </button>
           ) : (
             <a
-              href={`${BACKEND}/api/gmb/oauth/connect?orgId=${orgId}&redirect=/ads&source=google_ads`}
-              title="Connect Google account"
+              href={`${BACKEND}/api/ads/oauth/connect?orgId=${orgId}&redirect=/ads`}
+              title="Connect Google Ads account"
               className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-all cursor-pointer"
             >
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" fill="none">
