@@ -24,12 +24,37 @@ import {
   Star,
   CheckCircle,
   Eye,
-  EyeOff
+  EyeOff,
+  MessageSquare,
+  MessageCircle,
+  BarChart3,
+  Share2,
+  Globe,
+  Calendar,
+  Inbox,
+  Clock,
+  Tag
 } from "lucide-react";
 import Footer from "@/components/Footer";
 import HeroShowcase from "@/components/home/HeroShowcase";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+
+// Instagram SVG Icon
+const InstagramIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+  </svg>
+);
+
+// YouTube SVG Icon
+const YoutubeIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.522 3.5 12 3.5 12 3.5s-7.522 0-9.388.553a3.003 3.003 0 0 0-2.11 2.11C0 8.028 0 12 0 12s0 3.972.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.866.553 9.388.553 9.388.553s7.522 0 9.388-.553a3.003 3.003 0 0 0 2.11-2.11C24 15.972 24 12 24 12s0-3.972-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+  </svg>
+);
 
 declare global {
   interface Window {
@@ -39,7 +64,7 @@ declare global {
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
-export type PlanKey = "quarterly" | "half_yearly" | "annual";
+export type PlanKey = "annual";
 
 interface PlanItem {
   code: PlanKey;
@@ -47,6 +72,7 @@ interface PlanItem {
   durationLabel: string;
   durationMonths: number;
   basePrice: number;
+  originalPrice: number;
   tagline: string;
   isRecommended?: boolean;
   badge?: string;
@@ -61,93 +87,187 @@ interface PlanItem {
   features: string[];
 }
 
+// 12 Standalone CRM Modules Valuation (Total Standalone Value: ₹72,000 / Year)
+export const INDIVIDUAL_MODULES = [
+  {
+    id: "whatsapp",
+    name: "WhatsApp Cloud API Suite",
+    desc: "Official Meta Embedded Connect, verified template broadcasts & multi-agent routing.",
+    individualYearlyPrice: 12000,
+    individualMonthlyRate: 1000,
+    marketComparison: "Wati / AiSensy (₹1,500/mo)",
+    icon: MessageSquare,
+    color: "text-emerald-500",
+    bgColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    tag: "Core Messaging"
+  },
+  {
+    id: "google_ads",
+    name: "Google Ads Manager",
+    desc: "1-Click Search & Performance Max suite with AI keyword bids and instant attribution.",
+    individualYearlyPrice: 10000,
+    individualMonthlyRate: 833,
+    marketComparison: "AdEspresso / Agency suites ($49/mo)",
+    icon: BarChart3,
+    color: "text-sky-500",
+    bgColor: "bg-sky-50 text-sky-700 border-sky-200",
+    tag: "Search Ads"
+  },
+  {
+    id: "meta_ads",
+    name: "Meta (FB & IG) Ads Manager",
+    desc: "Direct lead generation forms sync to team inbox and instant WhatsApp triggers.",
+    individualYearlyPrice: 8000,
+    individualMonthlyRate: 667,
+    marketComparison: "LeadsBridge / Zapier ($30/mo)",
+    icon: Share2,
+    color: "text-blue-500",
+    bgColor: "bg-blue-50 text-blue-700 border-blue-200",
+    tag: "Social Ads"
+  },
+  {
+    id: "ai_agent",
+    name: "Autonomous 24/7 AI Agent",
+    desc: "Bring Any LLM Key (OpenAI, Claude, Gemini) with zero per-token markup & private context.",
+    individualYearlyPrice: 8000,
+    individualMonthlyRate: 667,
+    marketComparison: "Custom AI Bot SaaS (₹18,000/yr)",
+    icon: Bot,
+    color: "text-purple-500",
+    bgColor: "bg-purple-50 text-purple-700 border-purple-200",
+    tag: "Intelligence"
+  },
+  {
+    id: "chatbot",
+    name: "Drag-and-Drop Chatbot Builder",
+    desc: "Visual workflow designer with branching conditions, qualification paths & CRM updates.",
+    individualYearlyPrice: 6000,
+    individualMonthlyRate: 500,
+    marketComparison: "ManyChat Pro ($25/mo)",
+    icon: MessageCircle,
+    color: "text-teal-500",
+    bgColor: "bg-teal-50 text-teal-700 border-teal-200",
+    tag: "Automation"
+  },
+  {
+    id: "reviews",
+    name: "Google Reviews Sync & AI Replies",
+    desc: "Google Business Profile reviews sync, sentiment analysis & 100% automated AI brand replies.",
+    individualYearlyPrice: 6000,
+    individualMonthlyRate: 500,
+    marketComparison: "Birdeye / Podium ($30/mo)",
+    icon: Star,
+    color: "text-amber-500",
+    bgColor: "bg-amber-50 text-amber-700 border-amber-200",
+    tag: "Reputation"
+  },
+  {
+    id: "inbox",
+    name: "Multi-Agent Unified Team Inbox",
+    desc: "Unified customer workspace for WhatsApp, Instagram, Gmail, and Google Review chats.",
+    individualYearlyPrice: 5000,
+    individualMonthlyRate: 417,
+    marketComparison: "Freshdesk / Zendesk Seats",
+    icon: Inbox,
+    color: "text-brand-blue",
+    bgColor: "bg-sky-50 text-sky-700 border-sky-200",
+    tag: "Collaboration"
+  },
+  {
+    id: "instagram",
+    name: "Instagram DM & Comments Auto-Bot",
+    desc: "Keyword triggered direct replies on reels, posts & automated lead capturing.",
+    individualYearlyPrice: 5000,
+    individualMonthlyRate: 417,
+    marketComparison: "ManyChat IG Pro ($20/mo)",
+    icon: InstagramIcon,
+    color: "text-rose-500",
+    bgColor: "bg-rose-50 text-rose-700 border-rose-200",
+    tag: "Social Growth"
+  },
+  {
+    id: "gmail",
+    name: "Gmail AI Automation",
+    desc: "Smart inbox sync, automated AI response drafts & high-converting follow-up sequences.",
+    individualYearlyPrice: 4000,
+    individualMonthlyRate: 333,
+    marketComparison: "Mailshake / GMass ($20/mo)",
+    icon: Mail,
+    color: "text-orange-500",
+    bgColor: "bg-orange-50 text-orange-700 border-orange-200",
+    tag: "Email Outreach"
+  },
+  {
+    id: "calendar",
+    name: "Google Calendar Booking Sync",
+    desc: "Direct meet scheduling, slot conflict resolution & instant calendar invitations.",
+    individualYearlyPrice: 3000,
+    individualMonthlyRate: 250,
+    marketComparison: "Calendly Standard ($12/mo)",
+    icon: Calendar,
+    color: "text-indigo-500",
+    bgColor: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    tag: "Scheduling"
+  },
+  {
+    id: "linkedin",
+    name: "LinkedIn Post Scheduler & B2B CRM",
+    desc: "Plan and schedule B2B content, track executive page engagement and capture B2B leads.",
+    individualYearlyPrice: 3000,
+    individualMonthlyRate: 250,
+    marketComparison: "Buffer / Hootsuite ($15/mo)",
+    icon: Globe,
+    color: "text-cyan-500",
+    bgColor: "bg-cyan-50 text-cyan-700 border-cyan-200",
+    tag: "B2B Pipeline"
+  },
+  {
+    id: "youtube",
+    name: "YouTube Sentiment Sync",
+    desc: "Video comment listener, spam shield & automated brand responses right from CRM.",
+    individualYearlyPrice: 2000,
+    individualMonthlyRate: 167,
+    marketComparison: "Brand Monitoring tools",
+    icon: YoutubeIcon,
+    color: "text-red-500",
+    bgColor: "bg-red-50 text-red-700 border-red-200",
+    tag: "Video CRM"
+  }
+];
+
+export const TOTAL_STANDALONE_VALUE = INDIVIDUAL_MODULES.reduce((sum, m) => sum + m.individualYearlyPrice, 0);
+
 const PLANS: PlanItem[] = [
   {
-    code: "quarterly",
-    name: "Quarterly Plan",
-    durationLabel: "3 Months Access",
-    durationMonths: 3,
-    basePrice: 5999,
-    effectiveMonthlyRate: 2000,
-    tagline: "Ideal agile starter package to kickstart WhatsApp automation and lead capture.",
-    savingsText: "Standard Quarterly Rate",
-    tierTheme: {
-      accentPill: "bg-slate-100 text-slate-700 border-slate-200",
-      borderActive: "border-slate-300",
-      badgeBg: "bg-slate-800 text-white",
-      highlightLabel: "Starter Flexibility"
-    },
-    features: [
-      "1-Click Official Meta WhatsApp Cloud API",
-      "1-Click Google Ads & Meta Ads Suite",
-      "1-Click Google Business Profile Reviews Sync",
-      "Visual Drag-and-Drop Chatbot Builder",
-      "Multi-Agent Unified Customer Team Inbox",
-      "Autonomous 24/7 AI Knowledge Base Agent",
-      "Instagram DM & Comment Auto-Replies",
-      "Gmail AI Drafting & Auto-Replies",
-      "Google Calendar Appointment Booking",
-      "YouTube Comment & Sentiment Sync",
-      "Dedicated Multi-Tenant Database Isolation"
-    ]
-  },
-  {
-    code: "half_yearly",
-    name: "Half-Yearly Plan",
-    durationLabel: "6 Months Access",
-    durationMonths: 6,
-    basePrice: 9999,
-    effectiveMonthlyRate: 1667,
-    tagline: "Extended flexibility and continuous campaigns for growing marketing teams.",
-    savingsText: "Save ~17% vs Quarterly run-rate",
-    tierTheme: {
-      accentPill: "bg-emerald-50 text-emerald-800 border-emerald-200",
-      borderActive: "border-emerald-500",
-      badgeBg: "bg-emerald-600 text-white",
-      highlightLabel: "Growing Teams"
-    },
-    features: [
-      "1-Click Official Meta WhatsApp Cloud API",
-      "1-Click Google Ads & Meta Ads Suite",
-      "1-Click Google Business Profile Reviews Sync",
-      "Visual Drag-and-Drop Chatbot Builder",
-      "Multi-Agent Unified Customer Team Inbox",
-      "Autonomous 24/7 AI Knowledge Base Agent",
-      "Instagram DM & Comment Auto-Replies",
-      "Gmail AI Drafting & Auto-Replies",
-      "Google Calendar Appointment Booking",
-      "YouTube Comment & Sentiment Sync",
-      "Dedicated Multi-Tenant Database Isolation"
-    ]
-  },
-  {
     code: "annual",
-    name: "Annual Plan",
+    name: "All-in-One Annual Plan",
     durationLabel: "1 Year / 12 Months",
     durationMonths: 12,
     basePrice: 14999,
+    originalPrice: 72000,
     effectiveMonthlyRate: 1250,
-    tagline: "Maximum value & complete enterprise automation with year-round peace of mind.",
+    tagline: "Complete enterprise CRM automation with all 12 modules unlocked for the entire year.",
     isRecommended: true,
-    badge: "MOST POPULAR • BEST VALUE",
-    savingsText: "Save ₹8,997 (37% OFF vs Quarterly)",
+    badge: "SPECIAL LIMITED TIME OFFER • VALID TILL 31 DEC",
+    savingsText: "Save ₹57,001 (79% OFF Official Total Value)",
     tierTheme: {
       accentPill: "bg-sky-50 text-brand-blue border-sky-200",
       borderActive: "border-brand-blue",
-      badgeBg: "bg-gradient-to-r from-brand-blue to-emerald-600 text-white",
-      highlightLabel: "Maximum Value • Year-Round"
+      badgeBg: "bg-gradient-to-r from-brand-blue via-emerald-600 to-amber-500 text-white",
+      highlightLabel: "All 12 Modules Included"
     },
     features: [
-      "1-Click Official Meta WhatsApp Cloud API",
-      "1-Click Google Ads & Meta Ads Suite",
-      "1-Click Google Business Profile Reviews Sync",
-      "Visual Drag-and-Drop Chatbot Builder",
-      "Multi-Agent Unified Customer Team Inbox",
-      "Autonomous 24/7 AI Knowledge Base Agent",
-      "Instagram DM & Comment Auto-Replies",
-      "Gmail AI Drafting & Auto-Replies",
-      "Google Calendar Appointment Booking",
-      "YouTube Comment & Sentiment Sync",
+      "1-Click Official Meta WhatsApp Cloud API (₹12,000 Value)",
+      "1-Click Google Ads & Meta Ads Suite (₹18,000 Value)",
+      "Google Business Profile Reviews Sync & AI Replies (₹6,000 Value)",
+      "Visual Drag-and-Drop Chatbot Builder (₹6,000 Value)",
+      "Multi-Agent Unified Customer Team Inbox (₹5,000 Value)",
+      "Autonomous 24/7 AI Knowledge Base Agent (₹8,000 Value)",
+      "Instagram DM & Comment Auto-Replies (₹5,000 Value)",
+      "Gmail AI Drafting & Auto-Replies (₹4,000 Value)",
+      "Google Calendar Appointment Booking (₹3,000 Value)",
+      "LinkedIn Post Scheduler & B2B Pipeline (₹3,000 Value)",
+      "YouTube Comment & Sentiment Sync (₹2,000 Value)",
       "Dedicated Multi-Tenant Database Isolation"
     ]
   }
@@ -171,6 +291,11 @@ export default function PricingPage() {
   const [selectedPlanCode, setSelectedPlanCode] = useState<PlanKey>("annual");
   const [extraChannels, setExtraChannels] = useState<number>(0);
 
+  // Billing Mode State: "upfront" | "emi"
+  const [billingMode, setBillingMode] = useState<"upfront" | "emi">("upfront");
+  // Sub-EMI Option State: "autopay" (Company Direct Monthly AutoPay) | "bank_emi" (Bank / NBFC Instant Loan EMI)
+  const [selectedEmiType, setSelectedEmiType] = useState<"autopay" | "bank_emi">("autopay");
+
   // Checkout Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -187,10 +312,12 @@ export default function PricingPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const activePlan = PLANS.find((p) => p.code === selectedPlanCode) || PLANS[2];
+  const activePlan = PLANS.find((p) => p.code === selectedPlanCode) || PLANS[0];
 
-  // Upfront calculations
-  const basePrice = activePlan.basePrice;
+  // Price calculation based on user selection:
+  // Option 1: Full Upfront Payment = 14,999 + 18% GST (₹17,698.82)
+  // Option 2 (AutoPay EMI) & Option 3 (Card EMI) = 30,000 + 18% GST (₹35,400.00)
+  const basePrice = billingMode === "emi" ? 30000 : activePlan.basePrice;
   const extraChannelsCost = extraChannels * EXTRA_CHANNEL_PRICE;
   const subtotal = basePrice + extraChannelsCost;
 
@@ -233,13 +360,15 @@ export default function PricingPage() {
     setSubmitting(true);
 
     try {
-      // 1. Create order on backend (Server calculates trusted amount)
+      // 1. Create order on backend (Server calculates trusted amount based on plan & billingMode)
       const orderRes = await fetch(`${BACKEND_URL}/api/subscription/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           planCode: selectedPlanCode,
           extraChannels,
+          billingMode,
+          emiType: selectedEmiType,
           email: email.trim(),
           name: fullName.trim(),
           phone: phone.trim(),
@@ -255,12 +384,19 @@ export default function PricingPage() {
       const isMock = orderData.isMock || !window.Razorpay;
 
       if (!isMock && window.Razorpay) {
-        const options = {
+        const orderDescription =
+          billingMode === "upfront"
+            ? `${activePlan.name} (12 Months Access)`
+            : selectedEmiType === "autopay"
+            ? "1st Month Downpayment (₹6,000) • 12 Months Access"
+            : "Annual Plan (Bank / Card EMI)";
+
+        const options: any = {
           key: orderData.keyId,
           amount: orderData.amountInPaise,
           currency: orderData.currency,
           name: "Jisnu CRM",
-          description: `${activePlan.name} (${activePlan.durationLabel})`,
+          description: orderDescription,
           image: "/icon.jpeg",
           order_id: orderData.orderId,
           prefill: {
@@ -284,6 +420,68 @@ export default function PricingPage() {
             },
           },
         };
+
+        // Strict Payment Method Filtering:
+        // Option 1: One-time full payment (₹14,999 + GST) -> NO EMI. Only UPI, Cards, Netbanking.
+        // Option 2: AutoPay EMI -> UPI AutoPay / e-NACH mandate only.
+        // Option 3: Card / Bank EMI -> Credit card & Debit card EMI only.
+        if (billingMode === "upfront") {
+          options.config = {
+            display: {
+              blocks: {
+                standard: {
+                  name: "Pay Full (No EMI)",
+                  instruments: [
+                    { method: "upi" },
+                    { method: "card" },
+                    { method: "netbanking" },
+                    { method: "wallet" },
+                  ],
+                },
+              },
+              sequence: ["block.standard"],
+              preferences: {
+                show_default_blocks: false,
+              },
+            },
+          };
+        } else if (billingMode === "emi" && selectedEmiType === "autopay") {
+          options.config = {
+            display: {
+              blocks: {
+                autopay: {
+                  name: "UPI AutoPay & Mandate Only",
+                  instruments: [
+                    { method: "upi" },
+                  ],
+                },
+              },
+              sequence: ["block.autopay"],
+              preferences: {
+                show_default_blocks: false,
+              },
+            },
+          };
+        } else if (billingMode === "emi" && selectedEmiType === "bank_emi") {
+          options.config = {
+            display: {
+              blocks: {
+                emi: {
+                  name: "Card & Bank EMI Only",
+                  instruments: [
+                    {
+                      method: "emi",
+                    },
+                  ],
+                },
+              },
+              sequence: ["block.emi"],
+              preferences: {
+                show_default_blocks: false,
+              },
+            },
+          };
+        }
 
         const rzp = new window.Razorpay(options);
         rzp.on("payment.failed", function (response: any) {
@@ -324,6 +522,8 @@ export default function PricingPage() {
           phone: phone.trim(),
           planCode: selectedPlanCode,
           extraChannels,
+          billingMode,
+          emiType: selectedEmiType,
         }),
       });
 
@@ -472,190 +672,472 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* 3-Tier Pricing Cards Grid */}
-        <div className="w-full max-w-6xl mx-auto mt-10 grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
-          {PLANS.map((plan) => {
-            const isRec = plan.isRecommended;
-            const cardExtraCost = extraChannels * EXTRA_CHANNEL_PRICE;
-            const cardSubtotal = plan.basePrice + cardExtraCost;
-            const cardGst = Math.round(cardSubtotal * (GST_PERCENTAGE / 100) * 100) / 100;
-            const cardTotalWithGst = Math.round((cardSubtotal + cardGst) * 100) / 100;
+        {/* ── Interactive Billing Mode Switcher (Pay Upfront vs EMI & AutoPay) ── */}
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <div className="p-1.5 bg-slate-100 border border-slate-200/90 rounded-2xl shadow-inner flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setBillingMode("upfront")}
+              className={`px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer ${
+                billingMode === "upfront"
+                  ? "bg-white text-slate-900 shadow-md shadow-slate-200/80 ring-2 ring-brand-blue/30"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Zap className="w-4 h-4 text-brand-blue" />
+              <span>Pay Upfront (Save 79% • ₹14,999)</span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                Best Value
+              </span>
+            </button>
 
-            return (
-              <div
-                key={plan.code}
-                className={`relative flex flex-col justify-between rounded-3xl transition-all duration-300 ${
-                  isRec
-                    ? "bg-gradient-to-b from-sky-50/70 via-white to-white border-2 border-brand-blue shadow-2xl shadow-brand-blue/20 md:-translate-y-3 ring-4 ring-brand-blue/15 z-10"
-                    : plan.code === "half_yearly"
-                    ? "bg-white border-2 border-emerald-500/40 shadow-lg hover:border-emerald-500 hover:shadow-xl transition-all"
-                    : "bg-white border border-slate-200/90 shadow-md hover:border-slate-300 hover:shadow-lg transition-all"
-                }`}
-              >
-                {/* Highlight Badge on Top for Annual Plan */}
-                {isRec ? (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
-                    <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-brand-blue via-sky-600 to-emerald-600 text-white text-[11px] font-black uppercase tracking-wider shadow-md shadow-brand-blue/30 ring-2 ring-white">
-                      <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                      {plan.badge || "MOST POPULAR • BEST VALUE"}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="absolute -top-3 right-6">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${plan.tierTheme.accentPill}`}>
-                      {plan.tierTheme.highlightLabel}
-                    </span>
-                  </div>
-                )}
+            <button
+              type="button"
+              onClick={() => setBillingMode("emi")}
+              className={`px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer ${
+                billingMode === "emi"
+                  ? "bg-white text-slate-900 shadow-md shadow-slate-200/80 ring-2 ring-brand-blue/30"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <CreditCard className="w-4 h-4 text-brand-orange" />
+              <span>Flexible Monthly / EMI</span>
+              <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full">
+                2 Easy Options
+              </span>
+            </button>
+          </div>
 
-                <div className="p-6 sm:p-8 space-y-6">
-                  {/* Plan Header */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+          <p className="text-xs text-slate-500 font-medium">
+            {billingMode === "upfront"
+              ? "✓ Pay once, enjoy full 12 months with ₹57,001 savings (Offer till 31 Dec)"
+              : "✓ Low monthly commitment with instant full-suite workspace activation"}
+          </p>
+        </div>
+
+        {/* ── Content View 1: Upfront One-Time Payment (₹14,999 / Year) ── */}
+        {billingMode === "upfront" && (
+          <div className="w-full max-w-5xl mx-auto mt-6 animate-in fade-in duration-300">
+            {(() => {
+              const plan = PLANS[0];
+              const cardExtraCost = extraChannels * EXTRA_CHANNEL_PRICE;
+              const cardSubtotal = plan.basePrice + cardExtraCost;
+              const cardGst = Math.round(cardSubtotal * (GST_PERCENTAGE / 100) * 100) / 100;
+              const cardTotalWithGst = Math.round((cardSubtotal + cardGst) * 100) / 100;
+
+              return (
+                <div className="relative rounded-3xl bg-gradient-to-b from-sky-50/90 via-white to-white border-2 border-brand-blue shadow-2xl shadow-brand-blue/15 p-6 sm:p-10 ring-4 ring-brand-blue/10 overflow-hidden">
+                  {/* Special Offer Ribbon Badge */}
+                  <div className="absolute top-0 right-0">
+                    <div className="bg-gradient-to-l from-amber-500 via-brand-orange to-brand-blue text-white font-black text-[11px] sm:text-xs py-1.5 px-6 rounded-bl-2xl shadow-md uppercase tracking-wider flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 animate-pulse" />
+                      <span>Special Offer • Valid Till 31st Dec</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                    {/* Left Column: Plan Details & Value Hook */}
+                    <div className="lg:col-span-7 space-y-6">
+                      <div className="space-y-2">
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase tracking-wider">
+                          <Star className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600" />
+                          <span>All 12 Platform Modules Unlocked</span>
+                        </div>
+                        <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
                           {plan.name}
-                          {isRec && (
-                            <span className="inline-flex items-center text-[10px] font-black uppercase tracking-wider text-brand-blue bg-sky-100/80 px-2 py-0.5 rounded-md">
-                              VIP Choice
-                            </span>
-                          )}
-                        </h3>
-                        <p className="text-[11px] font-bold text-slate-500 mt-0.5">
-                          {plan.durationLabel}
+                        </h2>
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                          {plan.tagline} Includes full access to WhatsApp Cloud API, Google Ads, Meta Ads, AI Chatbots, Team Inbox, and Google Reviews.
                         </p>
                       </div>
+
+                      {/* Anchoring Comparison Box */}
+                      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                          <div>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                              Official Total Module Worth
+                            </span>
+                            <span className="text-xl sm:text-2xl font-black text-slate-400 line-through">
+                              ₹{formatINR(plan.originalPrice)} / year
+                            </span>
+                          </div>
+                          <div className="sm:text-right">
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black uppercase">
+                              <Tag className="w-3.5 h-3.5" />
+                              79% Instant Savings
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+                          <div>
+                            <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider block">
+                              Official Special Offer (In this Year)
+                            </span>
+                            <div className="flex items-baseline gap-1 mt-0.5">
+                              <span className="text-2xl font-bold text-brand-blue">₹</span>
+                              <span className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
+                                {formatINR(cardSubtotal)}
+                              </span>
+                              <span className="text-xs font-bold text-slate-500">/ 12 Months</span>
+                            </div>
+                          </div>
+
+                          <div className="sm:text-right">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">Effective Cost</span>
+                            <span className="text-base sm:text-lg font-black text-emerald-600">
+                              ~₹{formatINR(plan.effectiveMonthlyRate)} / month
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">Single upfront payment</span>
+                          </div>
+                        </div>
+
+                        {/* GST & Extra Channels Breakdown */}
+                        <div className="pt-2 border-t border-slate-100 text-xs text-slate-600 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span>18% GST (Tax Invoice provided):</span>
+                            <span className="font-bold text-slate-800">₹{formatINR(cardGst, true)}</span>
+                          </div>
+                          {extraChannels > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span>{extraChannels} Extra Channel Account(s):</span>
+                              <span className="font-bold text-brand-blue">+₹{formatINR(cardExtraCost)}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between font-black text-slate-900 pt-1 border-t border-slate-100 text-sm">
+                            <span>Total Amount Payable:</span>
+                            <span className="text-brand-blue text-base">₹{formatINR(cardTotalWithGst, true)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCheckoutForPlan(plan.code)}
+                        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-brand-blue via-sky-600 to-brand-blue-deep hover:brightness-110 text-white font-black text-base flex items-center justify-center gap-2 transition-all shadow-xl shadow-brand-blue/25 ring-2 ring-brand-blue/30 cursor-pointer"
+                      >
+                        <span>Unlock All 12 Modules for ₹14,999</span>
+                        <ArrowRight className="h-5 w-5" />
+                      </button>
+                      <p className="text-center text-xs text-slate-500 font-medium">
+                        🔒 Zero hidden charges • Instant Razorpay verification • Full 12-month access
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-600 mt-2.5 min-h-[34px] leading-relaxed">
-                      {plan.tagline}
+
+                    {/* Right Column: Key Inclusions Checklist */}
+                    <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 shadow-xs space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <span className="text-xs font-black uppercase tracking-wider text-slate-900">
+                          Everything Included in ₹14,999:
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          12/12 Live
+                        </span>
+                      </div>
+
+                      <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                        {plan.features.map((feat, idx) => (
+                          <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
+                            <div className="h-4 w-4 rounded-full bg-brand-blue text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                              <Check className="h-2.5 w-2.5 stroke-[3]" />
+                            </div>
+                            <span className="font-medium text-slate-800 leading-tight">{feat}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 bg-sky-50/70 p-3 rounded-xl border border-sky-100 text-[11px] text-slate-600 leading-relaxed">
+                        💡 <strong>Save ₹57,001:</strong> When bought individually, these 12 modules cost ₹72,000/yr. The ₹14,999 package unlocks the full ecosystem.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* ── Content View 2: Flexible EMI & AutoPay Choices (Side-by-Side Comparison) ── */}
+        {billingMode === "emi" && (
+          <div className="w-full max-w-5xl mx-auto mt-6 space-y-6 animate-in fade-in duration-300">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+              {/* Option 1: Company Direct AutoPay */}
+              <div className="relative rounded-3xl bg-white border-2 border-slate-200 hover:border-brand-blue/60 p-6 sm:p-8 flex flex-col justify-between shadow-lg hover:shadow-xl transition-all space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 font-black text-[11px] uppercase tracking-wider border border-emerald-200">
+                      Option 1: Company Direct AutoPay
+                    </span>
+                    <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> 12 Months Full Service
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                      ₹6,000 Downpayment + 10 Months EMI
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Pay ₹6,000 today as 1st month downpayment, then ₹3,000/month for next 10 months. EMI completes in 11 months, enjoy full 12 months CRM service!
                     </p>
                   </div>
 
-                  {/* Price Block with Effective Monthly Breakdown */}
-                  <div className={`p-4 rounded-2xl border transition-all ${
-                    isRec 
-                      ? "bg-sky-50/60 border-sky-200/80 shadow-2xs" 
-                      : "bg-slate-50/70 border-slate-100"
-                  }`}>
+                  {/* Monthly Pricing Block */}
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
                     <div className="flex items-baseline justify-between">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl font-extrabold text-slate-500">₹</span>
-                        <span className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">
-                          {formatINR(cardSubtotal)}
-                        </span>
-                      </div>
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">1st Month Downpayment:</span>
+                      <span className="text-xl font-black text-brand-blue">₹6,000 <span className="text-xs text-slate-400 font-normal">(Day 1)</span></span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200/70 flex items-baseline justify-between">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Next 10 Months EMI:</span>
                       <div className="text-right">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Effective</span>
-                        <span className={`text-sm font-black ${isRec ? "text-emerald-700 font-extrabold" : "text-slate-700"}`}>
-                          ~₹{formatINR(plan.effectiveMonthlyRate)}/mo
-                        </span>
+                        <span className="text-2xl font-black text-slate-900">₹3,000</span>
+                        <span className="text-xs font-bold text-slate-500"> / month</span>
                       </div>
                     </div>
-
-                    {/* Savings Tag */}
-                    <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
-                      <span className={`font-black text-[11px] px-2 py-0.5 rounded-md ${
-                        isRec 
-                          ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300/50" 
-                          : plan.code === "half_yearly"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-200/70 text-slate-600"
-                      }`}>
-                        {plan.savingsText}
-                      </span>
-                      <span className="text-[11px] text-slate-500 font-medium">Billed upfront</span>
+                    <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between text-xs text-slate-600">
+                      <span>Total EMI Tenure:</span>
+                      <span className="font-bold text-slate-800">11 Months Completed</span>
                     </div>
-
-                    {extraChannels > 0 ? (
-                      <div className="mt-3 pt-2 border-t border-slate-200/60 space-y-1 text-xs">
-                        <div className="flex items-center justify-between text-slate-500">
-                          <span>Base Plan ({plan.durationLabel}):</span>
-                          <span className="font-semibold text-slate-800">₹{formatINR(plan.basePrice)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-500">
-                          <span>{extraChannels} Extra Account(s):</span>
-                          <span className="font-semibold text-brand-blue">+₹{formatINR(cardExtraCost)}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-500">
-                          <span>GST (18%):</span>
-                          <span className="font-semibold text-slate-700">₹{formatINR(cardGst, true)}</span>
-                        </div>
-                        <div className="flex items-center justify-between font-black text-slate-900 border-t border-slate-200 pt-1.5 text-xs">
-                          <span>Total Payable:</span>
-                          <span className="text-brand-blue text-sm">₹{formatINR(cardTotalWithGst, true)}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-3 pt-2 border-t border-slate-200/60 space-y-1 text-xs">
-                        <div className="flex items-center justify-between text-slate-500">
-                          <span>18% GST:</span>
-                          <span className="font-semibold text-slate-700">+₹{formatINR(cardGst, true)}</span>
-                        </div>
-                        <div className="flex items-center justify-between font-black text-slate-900 text-xs pt-0.5">
-                          <span>Total Payable:</span>
-                          <span className={`${isRec ? "text-brand-blue" : "text-slate-900"} text-sm font-black`}>
-                            ₹{formatINR(cardTotalWithGst, true)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                    <div className="pt-1 flex items-center justify-between text-xs text-emerald-700 font-bold bg-emerald-50 p-2 rounded-xl border border-emerald-200">
+                      <span>Service Duration Unlocked:</span>
+                      <span>Full 12 Months Access (1 Month Free Bonus)</span>
+                    </div>
                   </div>
 
-                  {/* Included Features */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">
-                        {isRec ? "Full Enterprise Suite Unlocked:" : "What's Included:"}
-                      </p>
-                      {isRec && (
-                        <span className="text-[10px] font-bold text-brand-blue flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-500" /> All 12 Modules
-                        </span>
-                      )}
+                  {/* Feature Checklist */}
+                  <div className="space-y-2.5 text-xs text-slate-700">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span><strong>UPI AutoPay:</strong> GPay, PhonePe, Paytm (Instant Auto-Debit)</span>
                     </div>
-                    <div className="space-y-2.5">
-                      {plan.features.map((feat, idx) => (
-                        <div key={idx} className="flex items-start gap-2 text-xs text-slate-700">
-                          <div className={`h-4 w-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                            isRec 
-                              ? "bg-brand-blue text-white shadow-2xs" 
-                              : plan.code === "half_yearly"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-slate-100 text-slate-700"
-                          }`}>
-                            <Check className="h-2.5 w-2.5 stroke-[3]" />
-                          </div>
-                          <span className={`leading-tight ${isRec ? "font-medium text-slate-900" : ""}`}>{feat}</span>
-                        </div>
-                      ))}
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span><strong>Debit Card e-NACH:</strong> All major Indian banks supported</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span><strong>Complete 12-Month Access:</strong> Zero lock-in, pause or manage anytime</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>All 12 CRM platform modules unlocked immediately from Day 1</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Card CTA Bottom */}
-                <div className="p-6 sm:p-8 pt-0">
+                <div className="pt-4 border-t border-slate-100 space-y-2">
                   <button
                     type="button"
-                    onClick={() => handleOpenCheckoutForPlan(plan.code)}
-                    className={`w-full py-3.5 px-4 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
-                      isRec
-                        ? "bg-gradient-to-r from-brand-blue via-sky-600 to-brand-blue-deep hover:brightness-110 text-white shadow-brand-blue/30 ring-2 ring-brand-blue/40"
-                        : plan.code === "half_yearly"
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
-                        : "bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/10"
-                    }`}
+                    onClick={() => {
+                      setSelectedEmiType("autopay");
+                      handleOpenCheckoutForPlan("annual");
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
                   >
-                    <span>Choose {plan.name}</span>
-                    <ArrowRight className="h-4 w-4" />
+                    <span>Pay ₹6,000 Downpayment</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
-                  <p className="text-center text-[10px] text-slate-400 mt-2 font-medium">
-                    {isRec ? "★ Recommended for highest ROI & continuous operations" : "Single upfront payment • Instant workspace activation"}
+                  <p className="text-center text-[10px] text-slate-400">
+                    ₹6,000 today • Then ₹3,000/mo for 10 months via AutoPay
                   </p>
                 </div>
               </div>
-            );
-          })}
-        </div>
+
+              {/* Option 2: Dynamic Bank / Cardless NBFC Loan EMI */}
+              <div className="relative rounded-3xl bg-gradient-to-b from-sky-50/70 via-white to-white border-2 border-brand-blue p-6 sm:p-8 flex flex-col justify-between shadow-xl ring-2 ring-brand-blue/20 transition-all space-y-6">
+                {/* Popular Badge */}
+                <div className="absolute -top-3.5 right-6">
+                  <span className="px-3.5 py-1 rounded-full bg-gradient-to-r from-brand-blue to-emerald-600 text-white font-black text-[10px] uppercase tracking-wider shadow-md">
+                    Instant Bank Approval
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-sky-100 text-brand-blue font-black text-[11px] uppercase tracking-wider">
+                      Option 2: Bank &amp; Cardless Loan EMI
+                    </span>
+                    <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5" /> Live Bank Rates
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                      Dynamic Bank &amp; Card EMI
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Instant 1-year workspace access unlocked directly with flexible monthly installments across credit cards, debit cards, and pre-approved loans.
+                    </p>
+                  </div>
+
+                  {/* Clean Customer Facing EMI Block */}
+                  <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-200 space-y-2.5">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Starting Monthly EMI:</span>
+                      <div className="text-right">
+                        <span className="text-2xl font-black text-brand-blue">₹2,800 – ₹2,950</span>
+                        <span className="text-xs font-bold text-slate-500"> / month</span>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-sky-200/60 flex items-center justify-between text-xs text-slate-600">
+                      <span>EMI Tenures Available:</span>
+                      <span className="font-semibold text-slate-800">3, 6, 9 &amp; 12 Months</span>
+                    </div>
+                    <div className="pt-1 flex items-center justify-between text-xs text-brand-blue font-bold bg-sky-100/60 p-2 rounded-xl border border-sky-200">
+                      <span>Affordability Guarantee:</span>
+                      <span>Never more than ₹3,000 / month</span>
+                    </div>
+                  </div>
+
+                  {/* Feature Checklist */}
+                  <div className="space-y-2.5 text-xs text-slate-700">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span><strong>All Major Banks:</strong> HDFC, SBI, ICICI, Axis, Kotak, Bank of Baroda</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span><strong>Cardless &amp; NBFC Pre-approved:</strong> ZestMoney, EarlySalary, KreditBee</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span><strong>Instant Digital Activation:</strong> Full CRM unlocked without paperwork</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>All 12 CRM platform modules unlocked immediately from Day 1</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEmiType("bank_emi");
+                      handleOpenCheckoutForPlan("annual");
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-brand-blue to-brand-blue-deep hover:brightness-110 text-white font-black text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-brand-blue/30 cursor-pointer"
+                  >
+                    <span>Check Bank EMI Options</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <p className="text-center text-[10px] text-slate-400">
+                    Live bank rates shown instantly at checkout • Instant approval
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Comparison Callout */}
+            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-900 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Tip for Maximum Savings:</strong> If you can pay upfront, the <strong>One-Time ₹14,999 Offer</strong> saves you an extra ₹19,500+ compared to any monthly installment!
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBillingMode("upfront")}
+                className="font-bold text-brand-blue hover:underline whitespace-nowrap cursor-pointer text-xs"
+              >
+                Switch to ₹14,999 Upfront →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Individual Module Pricing Breakdown (12 Modules Separately = ₹72,000 / Year) ── */}
+        <section className="w-full max-w-5xl mx-auto mt-16 pt-10 border-t border-slate-200 space-y-6">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+              <Tag className="w-3.5 h-3.5 text-brand-blue" />
+              <span>STANDALONE VALUATION BREAKDOWN</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+              Individual Charges if Purchased Separately
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              If purchased as separate point solutions across the industry, each module carries the following 12-month standalone price (Total: ₹72,000 / Year).
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {INDIVIDUAL_MODULES.map((mod, idx) => {
+              const ModIcon = mod.icon;
+              return (
+                <div
+                  key={mod.id}
+                  className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`p-2 rounded-xl bg-slate-100 text-slate-700`}>
+                          <ModIcon className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-400 uppercase">
+                          Module {idx + 1}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                        {mod.tag}
+                      </span>
+                    </div>
+
+                    <h3 className="text-sm font-black text-slate-900 leading-snug">
+                      {mod.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-relaxed min-h-[34px]">
+                      {mod.desc}
+                    </p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 space-y-1.5">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-slate-500 font-medium">Standalone 12-Month Rate:</span>
+                      <span className="text-base font-black text-slate-900">
+                        ₹{formatINR(mod.individualYearlyPrice)} / yr
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Equiv. Monthly:</span>
+                      <span className="font-semibold text-slate-600">~₹{formatINR(mod.individualMonthlyRate)}/mo</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 italic pt-0.5">
+                      Market Comparison: {mod.marketComparison}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Cumulative Summary Box */}
+          <div className="p-6 rounded-2xl bg-slate-900 text-white flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+            <div className="space-y-1 text-center md:text-left">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Total Individual Value Across All 12 Modules
+              </span>
+              <div className="text-2xl sm:text-3xl font-black text-white flex items-center gap-3 justify-center md:justify-start">
+                <span className="line-through text-slate-500">₹72,000 / year</span>
+                <span className="text-emerald-400 text-base sm:text-lg font-bold">→ Only ₹14,999 in Official 2026 Offer</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleOpenCheckoutForPlan("annual")}
+              className="py-3 px-6 rounded-xl bg-brand-blue hover:bg-brand-blue-deep text-white font-black text-xs sm:text-sm shadow-md shadow-brand-blue/30 cursor-pointer shrink-0"
+            >
+              Get All 12 Modules at ₹14,999 →
+            </button>
+          </div>
+        </section>
 
         {/* Bring Any LLM Spotlight Banner */}
         <div className="w-full max-w-5xl mx-auto mt-14 p-6 rounded-3xl bg-sky-50/80 border border-sky-200 text-sky-950 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -844,27 +1326,42 @@ export default function PricingPage() {
                     </div>
                   )}
 
-                  {/* Plan Switcher Inside Modal */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Selected Plan
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {PLANS.map((p) => (
-                        <button
-                          key={p.code}
-                          type="button"
-                          onClick={() => setSelectedPlanCode(p.code)}
-                          className={`p-2.5 rounded-xl text-left border transition-all cursor-pointer ${
-                            selectedPlanCode === p.code
-                              ? "border-brand-blue bg-sky-50/60 ring-2 ring-brand-blue/20"
-                              : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                          }`}
-                        >
-                          <p className="text-xs font-black text-slate-900">{p.name}</p>
-                          <p className="text-[11px] font-semibold text-brand-blue mt-0.5">₹{formatINR(p.basePrice)}</p>
-                        </button>
-                      ))}
+                  {/* Selected Plan & Payment Mode Display Inside Modal */}
+                  <div className="p-3.5 rounded-2xl bg-sky-50/70 border border-sky-200 flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-900">{PLANS[0].name}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          {billingMode === "upfront" ? "Upfront (12 Mos)" : selectedEmiType === "autopay" ? "Option 1: AutoPay" : "Option 2: Bank Loan EMI"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {billingMode === "upfront"
+                          ? "All 12 Modules Included • ₹72,000 value for ₹14,999 (Valid till 31 Dec)"
+                          : selectedEmiType === "autopay"
+                          ? "₹6,000 Downpayment Today • Next 10 Months ₹3,000/mo (11 Mos EMI, 12 Mos Service)"
+                          : "Flexible Bank & Cardless EMI (From ₹2,800/mo) • Instant Full 1-Year Access"}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {billingMode === "upfront" ? (
+                        <>
+                          <span className="text-xs font-bold text-slate-400 line-through block">₹72,000</span>
+                          <span className="text-base font-black text-brand-blue">₹{formatINR(PLANS[0].basePrice)}</span>
+                        </>
+                      ) : selectedEmiType === "autopay" ? (
+                        <>
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Due Today</span>
+                          <span className="text-sm font-black text-brand-blue">₹6,000</span>
+                          <span className="block text-[9px] text-slate-500 font-medium">+10x ₹3,000/mo</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Starting at</span>
+                          <span className="text-sm font-black text-brand-blue">₹2,800/mo</span>
+                          <span className="block text-[9px] text-emerald-600 font-bold">Max ₹3,000/mo</span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -1031,28 +1528,82 @@ export default function PricingPage() {
 
                   {/* Payment Invoice Summary with GST */}
                   <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5">
-                    <div className="flex justify-between text-slate-600">
-                      <span>{activePlan.name} ({activePlan.durationLabel}):</span>
-                      <span className="font-semibold">₹{formatINR(basePrice)}</span>
-                    </div>
-                    {extraChannels > 0 && (
-                      <div className="flex justify-between text-slate-600">
-                        <span>{extraChannels} Extra Account(s) (₹2,000 each):</span>
-                        <span className="font-semibold">₹{formatINR(extraChannelsCost)}</span>
-                      </div>
+                    {billingMode === "upfront" ? (
+                      <>
+                        <div className="flex justify-between text-slate-600">
+                          <span>{activePlan.name} (Full Payment):</span>
+                          <span className="font-semibold">₹{formatINR(basePrice)}</span>
+                        </div>
+                        {extraChannels > 0 && (
+                          <div className="flex justify-between text-slate-600">
+                            <span>{extraChannels} Extra Account(s) (₹2,000 each):</span>
+                            <span className="font-semibold">₹{formatINR(extraChannelsCost)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-slate-600 border-t border-slate-200/80 pt-1">
+                          <span>Taxable Subtotal:</span>
+                          <span className="font-semibold">₹{formatINR(subtotal)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span>GST (18%):</span>
+                          <span className="font-semibold">₹{formatINR(gstAmount, true)}</span>
+                        </div>
+                        <div className="flex justify-between font-black text-slate-900 border-t border-slate-200 pt-1.5 text-sm">
+                          <span>Price Summary:</span>
+                          <span className="text-brand-blue font-black text-base">₹{formatINR(grandTotalWithGst, true)}</span>
+                        </div>
+                      </>
+                    ) : selectedEmiType === "autopay" ? (
+                      <>
+                        <div className="flex justify-between text-slate-600">
+                          <span>12 Months AutoPay Plan:</span>
+                          <span className="font-semibold">₹30,000</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span>GST (18%):</span>
+                          <span className="font-semibold">₹{formatINR(gstAmount, true)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 border-t border-slate-200/80 pt-1">
+                          <span>EMI Schedule:</span>
+                          <span className="font-bold text-slate-800">₹6,000 Downpayment + 10x ₹3,000/mo</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-700 bg-emerald-50/70 p-2 rounded-xl border border-emerald-200 text-xs font-bold">
+                          <span>Service Duration:</span>
+                          <span>Full 12 Months Active CRM Service</span>
+                        </div>
+                        <div className="flex justify-between font-black text-slate-900 border-t border-slate-200 pt-1.5 text-sm">
+                          <span>Price Summary (Total Order Value):</span>
+                          <span className="text-brand-blue font-black text-base">₹{formatINR(grandTotalWithGst, true)}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-slate-600">
+                          <span>12 Months Bank &amp; Card Loan Value:</span>
+                          <span className="font-semibold">₹30,000</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span>GST (18%):</span>
+                          <span className="font-semibold">₹{formatINR(gstAmount, true)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600 border-t border-slate-200/80 pt-1">
+                          <span>Allowed EMI Tenures:</span>
+                          <span className="font-bold text-slate-900">3, 6, 9 &amp; 12 Months Only</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span>Starting Monthly EMI:</span>
+                          <span className="font-bold text-brand-blue">₹2,800 – ₹2,950 / month</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-700 bg-emerald-50/70 p-2 rounded-xl border border-emerald-200 text-xs font-bold">
+                          <span>Service Duration Match:</span>
+                          <span>Full 12 Months Access (18/24 Months Prohibited)</span>
+                        </div>
+                        <div className="flex justify-between font-black text-slate-900 border-t border-slate-200 pt-1.5 text-sm">
+                          <span>Price Summary (Total Order Value):</span>
+                          <span className="text-brand-blue font-black text-base">₹{formatINR(grandTotalWithGst, true)}</span>
+                        </div>
+                      </>
                     )}
-                    <div className="flex justify-between text-slate-600 border-t border-slate-200/80 pt-1">
-                      <span>Taxable Subtotal:</span>
-                      <span className="font-semibold">₹{formatINR(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>GST (18%):</span>
-                      <span className="font-semibold">₹{formatINR(gstAmount, true)}</span>
-                    </div>
-                    <div className="flex justify-between font-black text-slate-900 border-t border-slate-200 pt-1.5 text-sm">
-                      <span>Total Payable:</span>
-                      <span className="text-brand-blue">₹{formatINR(grandTotalWithGst, true)}</span>
-                    </div>
                   </div>
 
                   <div className="pt-1">
@@ -1063,11 +1614,19 @@ export default function PricingPage() {
                     >
                       {submitting ? (
                         <span>Processing Payment &amp; Provisioning...</span>
+                      ) : billingMode === "upfront" ? (
+                        <>
+                          <span>Pay ₹{formatINR(grandTotalWithGst, true)} &amp; Unlock CRM</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      ) : selectedEmiType === "autopay" ? (
+                        <>
+                          <span>Setup AutoPay (₹{formatINR(grandTotalWithGst, true)})</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
                       ) : (
                         <>
-                          <span>
-                            Pay ₹{formatINR(grandTotalWithGst, true)} &amp; Unlock CRM
-                          </span>
+                          <span>Proceed to Card EMI (₹{formatINR(grandTotalWithGst, true)})</span>
                           <ArrowRight className="w-4 h-4" />
                         </>
                       )}

@@ -25,7 +25,9 @@ export const getRazorpayInstance = () => {
  */
 export const calculatePricing = (
   planCode: string = "annual",
-  extraChannels: number = 0
+  extraChannels: number = 0,
+  billingMode: "upfront" | "emi" = "upfront",
+  emiType: "autopay" | "bank_emi" = "autopay"
 ) => {
   const normalizedPlanCode = (planCode || "").toLowerCase().trim();
   const plan: SubscriptionPlanConfig =
@@ -34,9 +36,15 @@ export const calculatePricing = (
   const extraChannelsCount = Math.max(0, Number(extraChannels) || 0);
   const extraChannelsCost = extraChannelsCount * EXTRA_CHANNEL_PRICE;
 
-  const basePrice = plan.basePrice;
+  let basePrice = plan.basePrice; // Default 14,999 for upfront full payment
+  
+  // If user selected EMI (AutoPay or Card/Bank EMI), Price Summary is 30K + 18% GST (30,000 + 5,400 = 35,400)
+  if (billingMode === "emi") {
+    basePrice = 30000;
+  }
+
   const subtotal = basePrice + extraChannelsCost;
-  // Exact 18% GST calculation (e.g. 14999 * 0.18 = 2699.82; 5999 * 0.18 = 1079.82; 6000 * 0.18 = 1080)
+  // Exact 18% GST calculation (e.g. 14999 * 0.18 = 2699.82; 30000 * 0.18 = 5400)
   const rawGst = subtotal * (plan.gstPercentage / 100);
   // Round to 2 decimal places for precise monetary representation
   const gstAmount = Math.round(rawGst * 100) / 100;
@@ -44,7 +52,7 @@ export const calculatePricing = (
 
   return {
     planCode: plan.code,
-    planName: plan.name,
+    planName: billingMode === "emi" && emiType === "autopay" ? "Annual Plan (AutoPay Downpayment)" : plan.name,
     durationMonths: plan.durationMonths,
     basePrice,
     extraChannelsCount,
@@ -53,6 +61,8 @@ export const calculatePricing = (
     gstPercentage: plan.gstPercentage,
     gstAmount,
     grandTotal,
+    billingMode,
+    emiType,
     // Razorpay amount in paise (1 INR = 100 paise)
     amountInPaise: Math.round(grandTotal * 100),
     features: plan.features,
@@ -96,14 +106,22 @@ router.post("/calculate", (req: Request, res: Response) => {
  */
 router.post("/create-order", async (req: Request, res: Response) => {
   try {
-    const { planCode = "annual", email, name, phone, extraChannels = 0 } = req.body;
+    const {
+      planCode = "annual",
+      email,
+      name,
+      phone,
+      extraChannels = 0,
+      billingMode = "upfront",
+      emiType = "autopay",
+    } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: "email is required" });
     }
 
     // Server-side calculation only
-    const calculation = calculatePricing(planCode, extraChannels);
+    const calculation = calculatePricing(planCode, extraChannels, billingMode, emiType);
     const { grandTotal, amountInPaise, planCode: resolvedPlanCode, durationMonths } = calculation;
 
     const razorpay = getRazorpayInstance();
@@ -121,6 +139,8 @@ router.post("/create-order", async (req: Request, res: Response) => {
           extraChannels: String(calculation.extraChannelsCount),
           basePrice: String(calculation.basePrice),
           gstAmount: String(calculation.gstAmount),
+          billingMode,
+          emiType,
         },
       };
 
@@ -141,6 +161,8 @@ router.post("/create-order", async (req: Request, res: Response) => {
           metadata: {
             calculation,
             receipt: options.receipt,
+            billingMode,
+            emiType,
           },
         },
       });
@@ -174,6 +196,8 @@ router.post("/create-order", async (req: Request, res: Response) => {
             isMock: true,
             notice: "Sandbox mock mode without live Razorpay keys",
             calculation,
+            billingMode,
+            emiType,
           },
         },
       });
@@ -211,6 +235,8 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
       phone,
       planCode = "annual",
       extraChannels = 0,
+      billingMode = "upfront",
+      emiType = "autopay",
     } = req.body;
 
     if (!email || !password || !organizationName) {
@@ -232,8 +258,8 @@ router.post("/verify-and-register", async (req: Request, res: Response) => {
       });
     }
 
-    // Always recompute pricing server-side based on planCode and extraChannels
-    const calculation = calculatePricing(planCode, extraChannels);
+    // Always recompute pricing server-side based on planCode, extraChannels, billingMode, and emiType
+    const calculation = calculatePricing(planCode, extraChannels, billingMode, emiType);
     const {
       grandTotal,
       planCode: resolvedPlanCode,
