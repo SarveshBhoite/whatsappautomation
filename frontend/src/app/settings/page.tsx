@@ -2252,22 +2252,37 @@ print(res.json())`;
       });
       if (res.ok) {
         const data = await res.json();
-        const cfg = data.config || data;
-        if (cfg) {
+        const cfg = data.config;
+        if (cfg && cfg.channelId) {
           setYtConfig({
             channelId: cfg.channelId || "",
             channelTitle: cfg.channelTitle || "",
             accessToken: cfg.accessToken || "",
             refreshToken: cfg.refreshToken || ""
           });
+        } else {
+          setYtConfig({
+            channelId: "",
+            channelTitle: "",
+            accessToken: "",
+            refreshToken: ""
+          });
         }
         if (data.accounts && Array.isArray(data.accounts)) {
           setYoutubeAccounts(data.accounts);
-          const active = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
-          if (active && !targetId) {
-            setSelectedYoutubeAccountId(active.id);
+          if (data.accounts.length === 0) {
+            setSelectedYoutubeAccountId("");
+          } else {
+            const active = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
+            if (active && (!targetId || !data.accounts.some((a: any) => a.id === targetId))) {
+              setSelectedYoutubeAccountId(active.id);
+            }
           }
         }
+      } else {
+        setYoutubeAccounts([]);
+        setSelectedYoutubeAccountId("");
+        setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
       }
     } catch (err) {
       console.error("Error fetching YouTube config:", err);
@@ -2437,8 +2452,8 @@ print(res.json())`;
     }
   };
 
-  const handleDisconnectYoutube = async () => {
-    if (!confirm("Are you sure you want to disconnect your YouTube Channel? Video comment monitoring will be stopped.")) return;
+  const handleDisconnectYoutube = async (accountId?: string) => {
+    if (!confirm("Are you sure you want to disconnect this YouTube Channel? Video comment monitoring will be stopped.")) return;
     try {
       setYtOauthStatus("connecting");
       const res = await fetch(`${BACKEND_URL}/api/youtube/disconnect`, {
@@ -2447,11 +2462,12 @@ print(res.json())`;
           "Content-Type": "application/json",
           "x-organization-id": getOrgId(),
         },
+        body: JSON.stringify(accountId ? { accountId } : {})
       });
       if (res.ok) {
         alert("✓ YouTube Channel disconnected successfully.");
         setYtConfig({ channelId: "", channelTitle: "", accessToken: "", refreshToken: "" });
-        fetchYoutubeConfig();
+        await fetchYoutubeConfig();
       } else {
         alert("Failed to disconnect YouTube channel.");
       }
@@ -5285,7 +5301,7 @@ print(res.json())`;
                           {(ytConfig.refreshToken || ytConfig.channelId) && (
                             <button
                               type="button"
-                              onClick={handleDisconnectYoutube}
+                              onClick={() => handleDisconnectYoutube()}
                               disabled={ytOauthStatus === "connecting"}
                               className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
                             >
@@ -5328,17 +5344,31 @@ print(res.json())`;
                         </div>
 
                         <div className="space-y-2.5">
-                          {youtubeAccounts.length === 0 && !(ytConfig.channelId || ytConfig.refreshToken) ? (
-                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
-                              No YouTube channel linked yet. Click <strong>"Link Additional Account"</strong> or <strong>"Connect with YouTube"</strong> to authorize your channel.
-                            </div>
-                          ) : (
-                            (youtubeAccounts.length > 0 ? youtubeAccounts : [{
-                              id: "default",
-                              channelTitle: ytConfig.channelTitle,
-                              channelId: ytConfig.channelId,
-                              isDefault: true
-                            }]).map((acc) => {
+                          {(() => {
+                            const sourceList = youtubeAccounts.length > 0
+                              ? youtubeAccounts
+                              : (ytConfig.channelId ? [{ id: (ytConfig as any).id || "default", channelTitle: ytConfig.channelTitle, channelId: ytConfig.channelId, isDefault: true, isActive: true }] : []);
+                            
+                            const activeList = sourceList.filter((a: any) => a.isActive !== false && Boolean(a.channelId));
+                            const seen = new Set<string>();
+                            const uniqueList: any[] = [];
+                            for (const acc of activeList) {
+                              const key = acc.channelId || acc.id;
+                              if (!seen.has(key)) {
+                                seen.add(key);
+                                uniqueList.push(acc);
+                              }
+                            }
+
+                            if (uniqueList.length === 0) {
+                              return (
+                                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+                                  No YouTube channel linked yet. Click <strong>"Link Additional Account"</strong> or <strong>"Connect with YouTube"</strong> to authorize your channel.
+                                </div>
+                              );
+                            }
+
+                            return uniqueList.map((acc) => {
                               const isPrimary = acc.isDefault || acc.id === selectedYoutubeAccountId;
                               return (
                                 <div key={acc.id} className={`flex items-center justify-between p-4 border rounded-2xl text-xs transition-all ${isPrimary ? "bg-gradient-to-r from-red-50/80 to-rose-50/40 border-red-300 shadow-2xs" : "bg-white border-slate-200 hover:border-red-200"}`}>
@@ -5377,11 +5407,18 @@ print(res.json())`;
                                         Set as Primary Channel
                                       </button>
                                     )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDisconnectYoutube(acc.id)}
+                                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                                    >
+                                      Disconnect
+                                    </button>
                                   </div>
                                 </div>
                               );
-                            })
-                          )}
+                            });
+                          })()}
                         </div>
                       </div>
                     </div>

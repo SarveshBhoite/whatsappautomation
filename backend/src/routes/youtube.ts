@@ -13,20 +13,16 @@ const getOrgId = (req: Request): string => {
 // GET: Fetch YouTube Config credentials
 router.get("/config", async (req: Request, res: Response) => {
   try {
-    let organizationId = getOrgId(req);
+    const organizationId = getOrgId(req);
     if (!organizationId) {
-      const firstOrg = await prisma.organization.findFirst();
-      if (firstOrg) organizationId = firstOrg.id;
+      return res.status(200).json({ config: null, accounts: [] });
     }
     const requestedAccountId = req.query.accountId as string;
 
-    let accounts: any[] = [];
-    if (organizationId) {
-      accounts = await (prisma as any).youTubeConfig.findMany({
-        where: { organizationId },
-        orderBy: { createdAt: "desc" }
-      });
-    }
+    const accounts: any[] = await (prisma as any).youTubeConfig.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: { createdAt: "desc" }
+    });
 
     let config: any = null;
     if (requestedAccountId) {
@@ -34,24 +30,6 @@ router.get("/config", async (req: Request, res: Response) => {
     }
     if (!config) {
       config = accounts.find((a: any) => a.isDefault) || accounts[0] || null;
-    }
-
-    if (!config && organizationId) {
-      const org = await prisma.organization.findUnique({ where: { id: organizationId } });
-      if (org) {
-        config = await (prisma as any).youTubeConfig.create({
-          data: {
-            organizationId,
-            channelId: "",
-            channelTitle: "",
-            accessToken: "",
-            refreshToken: "",
-            isDefault: true,
-            isActive: true
-          },
-        });
-        accounts = [config];
-      }
     }
 
     // Auto-backfill & auto-discover all owned (mine=true) and managed (managedByMe=true) channels
@@ -81,29 +59,18 @@ router.get("/config", async (req: Request, res: Response) => {
           console.warn("Could not fetch managedByMe=true channels:", managedErr.message);
         }
 
-        for (const ch of chItems) {
-          const chId = ch.id;
-          const chTitle = ch.snippet?.title || "YouTube Channel";
-          const existingAcc = accounts.find((a: any) => a.channelId === chId);
-          if (!existingAcc && chId) {
-            const newRecord = await (prisma as any).youTubeConfig.create({
+        if (chItems.length > 0) {
+          const firstCh = chItems[0];
+          if (firstCh && (!config.channelId || !config.channelTitle)) {
+            await (prisma as any).youTubeConfig.update({
+              where: { id: config.id },
               data: {
-                organizationId,
-                channelId: chId,
-                channelTitle: chTitle,
-                accessToken: config.accessToken,
-                refreshToken: config.refreshToken || "",
-                isDefault: false,
-                isActive: true
+                channelId: firstCh.id,
+                channelTitle: firstCh.snippet?.title || "YouTube Channel"
               }
             });
-            accounts.push(newRecord);
-          } else if (existingAcc && chTitle && existingAcc.channelTitle !== chTitle) {
-            await (prisma as any).youTubeConfig.update({
-              where: { id: existingAcc.id },
-              data: { channelTitle: chTitle }
-            });
-            existingAcc.channelTitle = chTitle;
+            config.channelId = firstCh.id;
+            config.channelTitle = firstCh.snippet?.title || "YouTube Channel";
           }
         }
       } catch (err: any) {
@@ -121,18 +88,15 @@ router.get("/config", async (req: Request, res: Response) => {
 // GET: Fetch all YouTube accounts list
 router.get("/accounts", async (req: Request, res: Response) => {
   try {
-    let organizationId = getOrgId(req);
+    const organizationId = getOrgId(req);
     if (!organizationId) {
-      const firstOrg = await prisma.organization.findFirst();
-      if (firstOrg) organizationId = firstOrg.id;
+      return res.status(200).json({ success: true, accounts: [] });
     }
 
-    const accounts = organizationId
-      ? await (prisma as any).youTubeConfig.findMany({
-          where: { organizationId },
-          orderBy: { createdAt: "desc" }
-        })
-      : [];
+    const accounts = await (prisma as any).youTubeConfig.findMany({
+      where: { organizationId, isActive: true },
+      orderBy: { createdAt: "desc" }
+    });
 
     return res.status(200).json({ success: true, accounts });
   } catch (error: any) {
@@ -322,6 +286,7 @@ const handleOAuthCallback = async (req: Request, res: Response) => {
                 accessToken: access_token,
                 ...(refresh_token && { refreshToken: refresh_token }),
                 channelTitle: chTitle,
+                isActive: true
               }
             });
           } else {
@@ -448,12 +413,21 @@ async function getYoutubeAccessToken(orgId: string, accountId?: string): Promise
     // Update accessToken in DB
     await prisma.youTubeConfig.update({
       where: { id: config.id },
-      data: { accessToken }
+      data: { accessToken, isActive: true }
     });
     return { accessToken, config: { ...config, accessToken } };
   } catch (error: any) {
     console.error(`[YOUTUBE OAUTH] Token refresh failed for org ${orgId}:`, error?.response?.data || error.message);
-    throw new Error("YouTube access token expired or revoked. Please reconnect your YouTube account in Settings.");
+    // Automatically flag config as inactive / unlinked in DB so UI reflects disconnection immediately
+    await prisma.youTubeConfig.update({
+      where: { id: config.id },
+      data: { isActive: false, accessToken: "" }
+    }).catch(() => {});
+
+    const err: any = new Error("YouTube access token expired or revoked. Please reconnect your YouTube account in Settings.");
+    err.status = 401;
+    err.code = "YOUTUBE_DISCONNECTED";
+    throw err;
   }
 }
 
@@ -597,8 +571,10 @@ router.get("/analytics", async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("Error fetching YouTube Analytics:", error?.response?.data || error.message);
-    res.status(500).json({
-      error: "Failed to fetch YouTube Analytics",
+    const status = error.status || (error.code === "YOUTUBE_DISCONNECTED" ? 401 : 500);
+    res.status(status).json({
+      error: error.message || "Failed to fetch YouTube Analytics",
+      code: error.code || "ANALYTICS_ERROR",
       details: error?.response?.data || error.message
     });
   }
@@ -1158,17 +1134,18 @@ router.post("/comments/reply", async (req: Request, res: Response) => {
 router.post("/disconnect", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const accountId = req.body?.accountId as string;
+
     if (organizationId) {
-      await prisma.youTubeConfig.updateMany({
-        where: { organizationId },
-        data: {
-          channelId: "",
-          channelTitle: "",
-          accessToken: "",
-          refreshToken: null,
-          tokenExpiresAt: null,
-        },
-      });
+      if (accountId) {
+        await (prisma as any).youTubeConfig.deleteMany({
+          where: { id: accountId, organizationId }
+        });
+      } else {
+        await (prisma as any).youTubeConfig.deleteMany({
+          where: { organizationId }
+        });
+      }
     }
     return res.status(200).json({ success: true, message: "YouTube channel disconnected successfully." });
   } catch (error: any) {

@@ -1161,6 +1161,7 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
     if (!organizationId) {
       return res.status(200).json({
         config: null,
+        accounts: [],
         liveProfile: null
       });
     }
@@ -1173,6 +1174,7 @@ router.get("/instagram/config", async (req: Request, res: Response) => {
     if (!org) {
       return res.status(200).json({
         config: null,
+        accounts: [],
         liveProfile: null
       });
     }

@@ -378,7 +378,7 @@ export default function Dashboard() {
 
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loadingConversations, setLoadingConversations] = useState(true);
+  const [loadingConversations, setLoadingConversations] = useState(false);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -902,17 +902,34 @@ export default function Dashboard() {
 
   // 2. HTTP API Calls
   const fetchConversations = async (accountId?: string) => {
+    const orgId = getOrgId();
+    if (!orgId) {
+      setConversations([]);
+      setLoadingConversations(false);
+      return;
+    }
+
+    const targetAccount = accountId !== undefined ? accountId : selectedIgAccountId;
+    // If no Instagram account is connected to this workspace, avoid loading animation and immediately clear
+    if (!targetAccount && igAccounts.length === 0) {
+      setConversations([]);
+      setLoadingConversations(false);
+      return;
+    }
+
     try {
       setLoadingConversations(true);
-      const targetAccount = accountId !== undefined ? accountId : selectedIgAccountId;
       const queryParams = new URLSearchParams({ platform: "instagram" });
       if (targetAccount) {
         queryParams.append("accountId", targetAccount);
       }
       const res = await fetch(`${BACKEND_URL}/api/admin/conversations?${queryParams.toString()}`, {
-        headers: { "x-organization-id": getOrgId() }
+        headers: { "x-organization-id": orgId }
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setConversations([]);
+        return;
+      }
       const data = await res.json();
       if (Array.isArray(data)) {
         setConversations(data);
@@ -1449,7 +1466,7 @@ export default function Dashboard() {
 
                 {/* Conversation items list */}
                 <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-                  {loadingConversations ? (
+                  {loadingConversations && igAccounts.length > 0 ? (
                     <div className="p-4 space-y-3 animate-pulse">
                       {[1, 2, 3, 4, 5].map((i) => (
                         <div key={i} className="p-3 bg-slate-50/80 rounded-2xl space-y-2 border border-slate-100">
@@ -1466,7 +1483,7 @@ export default function Dashboard() {
                       <div className="h-12 w-12 rounded-2xl bg-pink-50 border border-pink-200/80 flex items-center justify-center text-pink-500 shadow-2xs">
                         <Instagram className="h-6 w-6 stroke-1" />
                       </div>
-                      {isInstagramTab && igAccounts.length === 0 && !loadingConfig ? (
+                      {isInstagramTab && igAccounts.length === 0 ? (
                         <>
                           <div className="space-y-1">
                             <p className="text-xs font-bold text-slate-700">No Instagram Account Connected</p>
@@ -2031,7 +2048,7 @@ export default function Dashboard() {
                       <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-sm border bg-pink-50 text-pink-600 border-pink-200">
                         <Instagram className="h-10 w-10 stroke-1" />
                       </div>
-                      {isInstagramTab && igAccounts.length === 0 && !loadingConfig ? (
+                      {isInstagramTab && igAccounts.length === 0 ? (
                         <>
                           <h3 className="text-xl font-extrabold text-slate-900">No Instagram Account Connected</h3>
                           <p className="text-sm text-slate-500 leading-relaxed max-w-sm">
