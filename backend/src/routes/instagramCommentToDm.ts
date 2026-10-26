@@ -5,13 +5,16 @@ import { InstagramCommentEngine } from "../services/instagramCommentEngine";
 const router = Router();
 
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || "demo-org-123";
+  return (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || (req.body?.organizationId as string) || "";
 };
 
 // GET: Fetch live media (Reels + Feed Posts) from Meta Graph API with pagination support
 router.get("/media", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    if (!organizationId) {
+      return res.status(200).json({ media: [], paging: null });
+    }
     const afterCursor = (req.query.after as string) || "";
     const limit = Math.min(parseInt((req.query.limit as string) || "25"), 50);
 

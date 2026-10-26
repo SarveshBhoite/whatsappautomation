@@ -2,8 +2,6 @@ import axios from "axios";
 import prisma from "../utils/prisma";
 import { Server } from "socket.io";
 
-const DEFAULT_ORG_ID = "demo-org-123";
-
 /**
  * Returns a valid access token for Gmail API.
  * If expired, it automatically refreshes it using the Google OAuth refresh token.

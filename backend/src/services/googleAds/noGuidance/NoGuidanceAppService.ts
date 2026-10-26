@@ -1,4 +1,4 @@
-﻿// No Guidance App Service - production ready implementation (Google Ads API v24)
+// No Guidance App Service - production ready implementation (Google Ads API v24)
 import { GoogleAdsBaseService } from "../shared/GoogleAdsBaseService";
 import axios from "axios";
 
@@ -14,7 +14,7 @@ export class NoGuidanceAppService extends GoogleAdsBaseService {
     payload: any
   ) {
     // ---- Validation ----
-    if (!organizationId || organizationId === "demo-org-123") {
+    if (!organizationId || !organizationId.trim()) {
       throw new Error("Invalid organizationId");
     }
     const cleanCustomerId = (customerId || "").replace(/-/g, "").trim();

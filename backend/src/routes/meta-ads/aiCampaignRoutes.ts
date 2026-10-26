@@ -7,7 +7,10 @@ import path from "path";
 import fs from "fs";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (req: Request): string => {
+  return (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || (req.query.orgId as string) || (req.body?.organizationId as string) || (req.body?.orgId as string) || "";
+};
 
 // Ensure uploads folder exists
 const uploadsDir = path.join(process.cwd(), "uploads");
@@ -63,7 +66,8 @@ router.post("/ai/conversation/upload-media", upload.single("file"), async (req: 
  */
 router.get("/ai/conversation/init", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.status(401).json({ success: false, error: "ORGANIZATION_REQUIRED" });
     const session = await MetaAIConversationService.getInitialSession(orgId);
     res.json({ success: true, session });
   } catch (error: any) {
@@ -78,7 +82,8 @@ router.get("/ai/conversation/init", async (req: Request, res: Response) => {
  */
 router.post("/ai/conversation/message", async (req: Request, res: Response) => {
   try {
-    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.status(401).json({ success: false, error: "ORGANIZATION_REQUIRED" });
     const { currentState, message } = req.body;
     const selectedOption = req.body.selectedOption || req.body.selectedOptionValue;
 
@@ -106,7 +111,8 @@ router.post("/ai/conversation/message", async (req: Request, res: Response) => {
  */
 router.post("/ai/conversation/confirm-publish", async (req: Request, res: Response) => {
   try {
-    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.status(401).json({ success: false, error: "ORGANIZATION_REQUIRED" });
     const { draft, executionId } = req.body;
 
     if (!draft) {
@@ -130,7 +136,8 @@ router.post("/ai/conversation/confirm-publish", async (req: Request, res: Respon
  */
 router.get("/ai/conversation/preview", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.status(401).json({ success: false, error: "ORGANIZATION_REQUIRED" });
     const targetId = (req.query.targetId || req.query.adId || req.query.creativeId) as string;
     const adFormat = (req.query.ad_format || req.query.adFormat || "DESKTOP_FEED_STANDARD") as string;
     const isCreativeId = req.query.isCreativeId === "true";
@@ -214,7 +221,8 @@ router.post("/ai/conversation/voice", voiceUpload.single("audio"), async (req: R
  */
 router.get("/targeting/search", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.status(401).json({ success: false, error: "ORGANIZATION_REQUIRED" });
     const q = ((req.query.q as string) || "").trim();
     const type = (req.query.type as string) || "adinterest";
 
@@ -330,7 +338,8 @@ router.get("/targeting/search", async (req: Request, res: Response) => {
  */
 router.get("/locations/search", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.status(401).json({ success: false, error: "ORGANIZATION_REQUIRED" });
     const q = ((req.query.q as string) || "").trim();
 
     if (!q || q.length < 1) {

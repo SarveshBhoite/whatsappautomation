@@ -56,7 +56,7 @@ export default function DemandGenCampaignCreatePage() {
   // Load existing campaigns from Google Ads API / DB once on component mount
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     const targetCid = customerId || "6587355041";
 
     fetch(`${BACKEND}/api/ads/customer-profile?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(targetCid)}`)
@@ -6268,7 +6268,7 @@ export default function DemandGenCampaignCreatePage() {
                 setIsPublishing(true);
                 try {
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                  const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+                  const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
                   const targetCid = customerId || "6587355041";
 
                   const validHeadlines = adHeadlines.filter(h => h && h.trim().length > 0);

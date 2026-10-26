@@ -465,7 +465,7 @@ export default function SalesSearchPage() {
   // Load existing campaigns from Google Ads / DB once on component mount
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     const targetCid = customerId || "6587355041";
 
     fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(targetCid)}`)
@@ -1081,7 +1081,7 @@ export default function SalesSearchPage() {
     setIsPublishing(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       // 10. Safe connection check before publishing
       try {

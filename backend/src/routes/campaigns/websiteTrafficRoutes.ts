@@ -20,7 +20,7 @@ const validatePayload = (req: any, res: any, next: any) => {
 router.post("/performance-max", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await WebsiteTrafficPerformanceMaxService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -35,7 +35,7 @@ router.post("/performance-max", validatePayload, async (req, res) => {
 router.post("/search", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await WebsiteTrafficSearchService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -50,12 +50,12 @@ router.post("/search", validatePayload, async (req, res) => {
 router.post("/demand-gen", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await WebsiteTrafficDemandGenService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const budgetErr = GoogleAdsBaseService.parseGoogleAdsBudgetError(error, {
       organizationId: orgId,
       customerId: (customerId || "").replace(/-/g, "").trim(),
@@ -79,7 +79,7 @@ router.post("/demand-gen", validatePayload, async (req, res) => {
 router.post("/video", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await WebsiteTrafficVideoService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -90,7 +90,7 @@ router.post("/video", validatePayload, async (req, res) => {
 router.post("/display", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await WebsiteTrafficDisplayService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -101,7 +101,7 @@ router.post("/display", validatePayload, async (req, res) => {
 router.post("/shopping", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await WebsiteTrafficShoppingService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {

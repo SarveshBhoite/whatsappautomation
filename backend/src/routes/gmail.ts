@@ -16,19 +16,22 @@ const upload = multer({ limits: { fileSize: 15 * 1024 * 1024 } });
 const activeCampaignTasks = new Map<string, { status: "SENDING" | "PAUSED" | "CANCELLED" }>();
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
 
 // Helper to resolve org ID from request headers
 const getOrgId = (req: Request): string => {
   const headerVal = req.headers["x-organization-id"];
-  if (Array.isArray(headerVal)) return headerVal[0] || DEFAULT_ORG_ID;
-  return headerVal || DEFAULT_ORG_ID;
+  if (Array.isArray(headerVal) && headerVal[0]) return headerVal[0];
+  if (typeof headerVal === "string" && headerVal.trim() !== "") return headerVal.trim();
+  return (req.query.orgId as string) || (req.query.organizationId as string) || (req.body?.orgId as string) || "";
 };
 
 // GET: Fetch Gmail configuration settings and accounts list
 router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    if (!organizationId) {
+      return res.status(200).json({ config: null, accounts: [] });
+    }
 
     const accounts = await prisma.gmailConfig.findMany({
       where: { organizationId, isActive: true },
@@ -154,7 +157,10 @@ router.post("/config", async (req: Request, res: Response) => {
 // GET: Redirect to Google OAuth for Gmail scope
 router.get("/oauth/connect", (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || "";
+    if (!orgId) {
+      return res.status(400).send("Organization ID is required for connecting Gmail");
+    }
     const redirectPath = (req.query.redirect as string) || "/gmail";
     const clientId = process.env.GOOGLE_CLIENT_ID;
     // Callback URI registered in Google Console for Gmail
@@ -184,13 +190,13 @@ router.get("/oauth/callback", async (req: Request, res: Response) => {
   const code = req.query.code as string;
   const stateStr = req.query.state as string;
   
-  let orgId = DEFAULT_ORG_ID;
+  let orgId = "";
   let redirectPath = "/gmail";
 
   if (stateStr) {
     try {
       const parsed = JSON.parse(stateStr);
-      orgId = parsed.orgId || DEFAULT_ORG_ID;
+      orgId = parsed.orgId || "";
       redirectPath = parsed.redirect || "/gmail";
     } catch {
       orgId = stateStr;

@@ -5,11 +5,12 @@ import multer from "multer";
 import path from "path";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
-
 // Helper to resolve org ID from request headers
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+  const headerVal = req.headers["x-organization-id"];
+  if (Array.isArray(headerVal) && headerVal[0]) return headerVal[0];
+  if (typeof headerVal === "string" && headerVal.trim() !== "") return headerVal.trim();
+  return (req.query.orgId as string) || (req.query.organizationId as string) || (req.body?.orgId as string) || (req.body?.organizationId as string) || "";
 };
 
 // Memory storage for ImageKit direct cloud upload
@@ -99,6 +100,9 @@ router.post(
 router.get("/config", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    if (!organizationId) {
+      return res.status(401).json({ error: "ORGANIZATION_REQUIRED", message: "Please log in to an organization workspace." });
+    }
 
     let config = await prisma.aiAgentConfig.findFirst({
       where: { organizationId },
@@ -192,6 +196,9 @@ router.post("/config", async (req: Request, res: Response) => {
 router.get("/knowledge", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    if (!organizationId) {
+      return res.status(200).json([]);
+    }
 
     const items = await prisma.aiKnowledgeItem.findMany({
       where: { organizationId },

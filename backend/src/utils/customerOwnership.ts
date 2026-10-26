@@ -37,7 +37,7 @@ export async function validateCustomerOwnership(orgId: string, customerId: strin
   } catch (err: any) {
     console.warn(`[CUSTOMER-OWNERSHIP] Warning validating ownership for cid ${cleanCid}:`, err.message);
     // If running in development/demo mode or during DB cold-start, allow access so user flows are not blocked
-    if (process.env.NODE_ENV !== "production" || orgId === "demo-org-123") {
+    if (process.env.NODE_ENV !== "production" && !orgId) {
       return true;
     }
     return false;
@@ -51,7 +51,11 @@ export async function validateCustomerOwnership(orgId: string, customerId: strin
  */
 export async function requireCustomerOwnership(req: Request, res: Response, next: NextFunction) {
   const customerId = (req.body?.customerId || req.query?.customerId || "") as string;
-  const orgId = (req.headers["x-organization-id"] || req.query?.orgId || req.body?.orgId || "demo-org-123") as string;
+  const orgId = (req.headers["x-organization-id"] || req.query?.orgId || req.body?.orgId || "") as string;
+
+  if (!orgId) {
+    return res.status(401).json({ error: "ORGANIZATION_REQUIRED", message: "Please log in to your organization workspace." });
+  }
 
   if (customerId && customerId !== "default") {
     try {

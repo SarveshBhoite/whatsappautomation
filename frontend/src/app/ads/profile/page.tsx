@@ -412,7 +412,7 @@ function ProfilePageContent() {
   const rawCustomerId = searchParams.get("customerId") || "";
   const customerId = rawCustomerId.replace(/-/g, "").trim();
 
-  const [orgId, setOrgId] = useState<string>("demo-org-123");
+  const [orgId, setOrgId] = useState<string>("");
   const [profile, setProfile] = useState<CustomerProfileData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

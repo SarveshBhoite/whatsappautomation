@@ -8,11 +8,12 @@ import { generateFlow } from "../services/aiFlowGenerator";
 import { io } from "../index";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
-
 // Helper to resolve org ID from request headers
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+  const headerVal = req.headers["x-organization-id"];
+  if (Array.isArray(headerVal) && headerVal[0]) return headerVal[0];
+  if (typeof headerVal === "string" && headerVal.trim() !== "") return headerVal.trim();
+  return (req.query.orgId as string) || (req.query.organizationId as string) || (req.body?.orgId as string) || (req.body?.organizationId as string) || "";
 };
 
 // POST: Authenticate user credentials against PostgreSQL database
@@ -508,6 +509,10 @@ router.get("/conversations", async (req: Request, res: Response) => {
     const organizationId = getOrgId(req);
     const { phoneNumberId, instagramAccountId, platform, accountId, page, limit } = req.query;
 
+    const pageNum = page ? Math.max(1, parseInt(page as string, 10)) : 1;
+    const pageSize = limit ? Math.max(1, parseInt(limit as string, 10)) : (page ? 50 : undefined);
+    const skip = pageSize ? (pageNum - 1) * pageSize : undefined;
+
     const whereClause: any = { organizationId };
 
     if (platform) {
@@ -552,31 +557,57 @@ router.get("/conversations", async (req: Request, res: Response) => {
         }
       }
     } else if (platform === "instagram") {
+      // Find all active Instagram accounts belonging to this organization
+      const igAccounts = await prisma.instagramConfig.findMany({
+        where: { organizationId, isActive: true }
+      });
+
+      // If no Instagram account is connected to this organization, strictly return empty list
+      if (igAccounts.length === 0) {
+        if (page || limit) {
+          return res.status(200).json({
+            conversations: [],
+            total: 0,
+            page: pageNum,
+            limit: pageSize || 50,
+            totalPages: 1,
+          });
+        }
+        return res.status(200).json([]);
+      }
+
       let targetIgId = instagramAccountId as string;
       let targetUsername: string | null = null;
+
       if (accountId) {
         const isValid = await validateAccountOwnership(organizationId, "instagram", accountId as string);
         if (!isValid) {
           return res.status(403).json({ error: "ACCOUNT_NOT_AUTHORIZED", details: "Account does not belong to organization" });
         }
-        const igConfig = await prisma.instagramConfig.findUnique({ where: { id: accountId as string } });
+        const igConfig = igAccounts.find((a) => a.id === accountId);
         if (igConfig) {
           targetIgId = igConfig.instagramAccountId;
           targetUsername = igConfig.username || null;
         }
       }
-      if (targetIgId) {
-        whereClause.OR = [
-          { accountHandle: targetIgId },
-          ...(targetUsername ? [{ accountHandle: targetUsername }] : []),
-          { accountHandle: null }
-        ];
+
+      // If no specific account was provided, select default or first connected account for this org
+      if (!targetIgId && !accountId) {
+        const activeConfig = igAccounts.find((a) => a.isDefault) || igAccounts[0];
+        if (activeConfig) {
+          targetIgId = activeConfig.instagramAccountId;
+          targetUsername = activeConfig.username || null;
+        }
+      }
+
+      const validHandles = [targetIgId, targetUsername].filter(Boolean) as string[];
+      if (validHandles.length > 0) {
+        whereClause.accountHandle = { in: validHandles };
+      } else {
+        // If no matching handle found for the selected account, isolate strictly
+        whereClause.accountHandle = "__NO_MATCHING_ACCOUNT__";
       }
     }
-
-    const pageNum = page ? Math.max(1, parseInt(page as string, 10)) : 1;
-    const pageSize = limit ? Math.max(1, parseInt(limit as string, 10)) : (page ? 50 : undefined);
-    const skip = pageSize ? (pageNum - 1) * pageSize : undefined;
 
     // Run count and conversations find in parallel
     const [totalCount, conversations] = await Promise.all([
@@ -665,10 +696,20 @@ router.get("/conversations", async (req: Request, res: Response) => {
   }
 });
 
-// GET: Fetch message history for a specific conversation
+// GET: Fetch message history for a specific conversation (org-isolated)
 router.get("/conversations/:id/messages", async (req: Request, res: Response) => {
   try {
+    const organizationId = getOrgId(req);
     const { id } = req.params;
+
+    // Ensure conversation belongs to the requesting organization
+    const conversation = await prisma.conversation.findFirst({
+      where: { id: id as string, organizationId }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: "Conversation not found or unauthorized" });
+    }
 
     const messages = await prisma.message.findMany({
       where: { conversationId: id as string },
@@ -682,6 +723,31 @@ router.get("/conversations/:id/messages", async (req: Request, res: Response) =>
   } catch (error: any) {
     console.error("Error fetching message history:", error);
     return res.status(500).json({ error: "Failed to fetch message history", details: error.message });
+  }
+});
+
+// DELETE: Delete a conversation and its messages (org-isolated)
+router.delete("/conversations/:id", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { id } = req.params;
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { id: id as string, organizationId }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: "Conversation not found or unauthorized" });
+    }
+
+    // Delete messages first, then conversation
+    await prisma.message.deleteMany({ where: { conversationId: id as string } });
+    await prisma.conversation.delete({ where: { id: id as string } });
+
+    return res.status(200).json({ success: true, message: "Conversation deleted successfully" });
+  } catch (error: any) {
+    console.error("Error deleting conversation:", error);
+    return res.status(500).json({ error: "Failed to delete conversation", details: error.message });
   }
 });
 
@@ -2149,10 +2215,8 @@ router.post("/instagram/comments/reply", async (req: Request, res: Response) => 
     }
 
     const io = req.app.get("io");
-    if (io) {
-      if (organizationId) io.to(organizationId).emit("instagram-comment-replied", { commentId, replyText, replyResponse });
-      io.to(DEFAULT_ORG_ID).emit("instagram-comment-replied", { commentId, replyText, replyResponse });
-      io.emit("instagram-comment-replied", { commentId, replyText, replyResponse });
+    if (io && organizationId) {
+      io.to(organizationId).emit("instagram-comment-replied", { commentId, replyText, replyResponse });
     }
 
     return res.status(200).json({
@@ -2194,10 +2258,8 @@ router.post("/instagram/comments/simulate", async (req: Request, res: Response) 
     instagramCommentsFeed.unshift(newComment);
 
     const io = req.app.get("io");
-    if (io) {
-      if (organizationId) io.to(organizationId).emit("instagram-comment-received", newComment);
-      io.to(DEFAULT_ORG_ID).emit("instagram-comment-received", newComment);
-      io.emit("instagram-comment-received", newComment);
+    if (io && organizationId) {
+      io.to(organizationId).emit("instagram-comment-received", newComment);
     }
 
     return res.status(200).json({
@@ -2789,7 +2851,11 @@ router.post("/whatsapp/bulk-broadcast", async (req: Request, res: Response) => {
 // GET: Fetch current organization's enabled modules
 router.get("/organization/my-modules", async (req: Request, res: Response) => {
   try {
-    const organizationId = (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || "demo-org-123";
+    const organizationId = (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || (req.body?.organizationId as string) || "";
+    if (!organizationId) {
+      return res.status(401).json({ error: "ORGANIZATION_REQUIRED", message: "Please log in to your organization workspace." });
+    }
+
     let org = null;
     try {
       org = await (prisma.organization as any).findUnique({
@@ -2799,36 +2865,12 @@ router.get("/organization/my-modules", async (req: Request, res: Response) => {
     } catch (dbErr) {}
 
     if (!org) {
-      return res.status(200).json({
-        id: organizationId,
-        name: "JISNU Digital Solutions",
-        enabledModules: [
-          "whatsapp",
-          "chat",
-          "gmb",
-          "google-ads",
-          "meta-ads",
-          "meta-ai-campaign",
-          "youtube",
-          "seo",
-          "gmail",
-          "linkedin",
-          "ai-agent",
-          "reports",
-          "drip",
-          "appointments"
-        ],
-        status: "ACTIVE"
-      });
+      return res.status(404).json({ error: "Organization not found" });
     }
 
     return res.status(200).json(org);
   } catch (error: any) {
-    return res.status(200).json({
-      id: "demo-org-123",
-      enabledModules: ["meta-ads", "meta-ai-campaign", "whatsapp", "chat", "gmb", "google-ads"],
-      status: "ACTIVE"
-    });
+    return res.status(500).json({ error: "Failed to fetch organization modules", details: error.message });
   }
 });
 

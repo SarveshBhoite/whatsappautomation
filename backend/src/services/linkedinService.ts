@@ -1745,7 +1745,7 @@ export class LinkedInService {
   }
 
   // Generate OAuth 2.0 Authorization URL for Personal Member Login
-  public static generateAuthUrl(orgId: string = "demo-org-123", redirectPath: string = "/linkedin"): string {
+  public static generateAuthUrl(orgId: string, redirectPath: string = "/linkedin"): string {
     const { clientId, redirectUri } = getLinkedInCredentials();
     const scopes = process.env.LINKEDIN_SCOPES || "openid profile email w_member_social";
 
@@ -2299,7 +2299,7 @@ export class LinkedInSchedulerEngine {
 
 export class LinkedInOrgService {
   // Generate OAuth 2.0 Authorization URL for Company Page (CRM3)
-  public static generateOrgAuthUrl(orgId: string = "demo-org-123", redirectPath: string = "/linkedin"): string {
+  public static generateOrgAuthUrl(orgId: string, redirectPath: string = "/linkedin"): string {
     const { clientId, redirectUri, scopes } = getLinkedInOrgCredentials();
 
     if (!clientId) {

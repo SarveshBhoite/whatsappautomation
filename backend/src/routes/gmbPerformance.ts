@@ -4,7 +4,6 @@ import axios from "axios";
 import { getGoogleAccessToken } from "../services/gmbSyncService";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
 
 // Helper to format Date objects as YYYY-MM-DD strings
 function formatDateString(date: Date): string {
@@ -174,7 +173,10 @@ function getMonthRange(month: number, year: number, limitDate: Date) {
 
 router.get("/", async (req, res) => {
   try {
-    const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || "";
+    if (!orgId) {
+      return res.status(200).json({ error: "Organization required", data: [] });
+    }
     const requestedAccountId = (req.query.accountId as string) || "";
 
     // Fetch configuration from database (supporting requested accountId or default account)

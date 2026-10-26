@@ -1328,7 +1328,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     setIsCalendarLoading(true);
     setCalendarError(null);
     try {
-      const orgId = typeof window !== "undefined" ? localStorage.getItem("organization_id") || "demo-org-123" : "demo-org-123";
+      const orgId = typeof window !== "undefined" ? localStorage.getItem("organization_id") || "" : "";
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
       const targetYear = yearOverride || calendarSelectedYear;
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/calendar-opportunities?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(customerId)}&year=${targetYear}`, {
@@ -1592,7 +1592,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (!cleanCid) return;
 
     setIsLoadingDbAssets(true);
-    const orgId = typeof window !== "undefined" ? localStorage.getItem("organization_id") || "demo-org-123" : "demo-org-123";
+    const orgId = typeof window !== "undefined" ? localStorage.getItem("organization_id") || "" : "";
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
     try {
@@ -2243,7 +2243,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     const fetchUserProfile = async (retryCount = 0) => {
       try {
         const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
-        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
         const cid = customerId || "6587355041";
         const storedUserName = typeof window !== "undefined" ? (localStorage.getItem("user_name") || localStorage.getItem("userName") || "") : "";
         const storedOrgName = typeof window !== "undefined" ? (localStorage.getItem("org_name") || localStorage.getItem("organizationName") || "") : "";
@@ -2951,7 +2951,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     try {
       setIsSavingKeywordsToProfile(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
       const cleanCid = cid.replace(/-/g, "").trim();
 
@@ -3046,7 +3046,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     try {
       setIsSavingKeywordsToProfile(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
       const cleanCid = cid.replace(/-/g, "").trim();
 
@@ -3095,7 +3095,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     setDraftSaveSuccess(null);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
 
       const cleanBiz = campaignState.businessName || campaignState.business?.name || "Draft Business";
@@ -3197,7 +3197,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     try {
       setIsLoadingDrafts(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
       const res = await fetch(`${BACKEND}/api/ads/campaigns/drafts?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`, {
         headers: { "x-organization-id": orgId }
@@ -3224,7 +3224,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     try {
       setIsLoadingCampaigns(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
       const res = await fetch(`${BACKEND}/api/ads/campaigns?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`);
       if (res.ok) {
@@ -3249,7 +3249,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     try {
       setIsLoadingBrandExclusions(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
       const res = await fetch(`${BACKEND}/api/ads/brand-exclusions?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`, {
         headers: { "x-organization-id": orgId }
@@ -3271,7 +3271,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
   const saveBrandExclusionToDb = async (name: string, brands: string[]) => {
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname !== "localhost" ? `${window.location.protocol}//${window.location.hostname}:5000` : "http://localhost:5000");
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
       const res = await fetch(`${BACKEND}/api/ads/brand-exclusions`, {
         method: "POST",
@@ -3765,7 +3765,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     if (editingField === "locations" && locationMode === "CUSTOM" && locationSearchQuery.trim().length >= 2) {
       setIsSearchingLocation(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
 
       const timer = setTimeout(async () => {
@@ -5550,7 +5550,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         }
       }
 
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/chat`, {
         method: "POST",
@@ -5869,7 +5869,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
         intentMessage = `Generate a Google Ads Demand Gen carousel slide asset package for card #${cIdx + 1} of "${bizContext}"${descContext}${siteContext}. Please generate: 1) 1 punchy card headline (strictly ≤ 40 characters) and 2) 1 high-resolution square 1:1 marketing creative image for this card.`;
       }
 
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/chat`, {
         method: "POST",
         headers: {
@@ -6728,7 +6728,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
     }
 
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
     // Step 1: Extract User Manual Inputs from prompt & Auto-Apply directly to Cockpit
     let activeState = { ...campaignState };
@@ -7153,7 +7153,7 @@ Please generate high-CTR festive headlines, conversion-focused descriptions, hig
 
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const effectiveState = { ...campaignState };
       

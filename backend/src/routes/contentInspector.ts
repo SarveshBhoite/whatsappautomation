@@ -14,11 +14,11 @@ try {
 const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 const router = Router();
 
-const DEFAULT_ORG_ID = "demo-org-123";
 const getOrgId = (req: Request): string => {
   const headerVal = req.headers["x-organization-id"];
-  if (Array.isArray(headerVal)) return headerVal[0] || DEFAULT_ORG_ID;
-  return headerVal || DEFAULT_ORG_ID;
+  if (Array.isArray(headerVal) && headerVal[0]) return headerVal[0];
+  if (typeof headerVal === "string" && headerVal.trim() !== "") return headerVal.trim();
+  return (req.query.orgId as string) || (req.query.organizationId as string) || (req.body?.orgId as string) || "";
 };
 
 // In-memory analysis history cache per org

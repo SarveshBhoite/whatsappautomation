@@ -105,7 +105,7 @@ interface CompanyPageDashboardProps {
 }
 
 export function CompanyPageDashboard({
-  organizationId = "demo-org-123",
+  organizationId = "",
   profile,
   config,
   scheduledPosts = [],

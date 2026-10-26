@@ -110,7 +110,7 @@ export function AssetPolicyDisapprovalsSection({
     setError(null);
     try {
       const cleanCid = customerId.replace(/-/g, "").trim();
-      const activeOrgId = orgId || (typeof window !== "undefined" ? localStorage.getItem("organization_id") || "demo-org-123" : "demo-org-123");
+      const activeOrgId = orgId || (typeof window !== "undefined" ? localStorage.getItem("organization_id") || "" : "");
 
       const params = new URLSearchParams();
       params.append("customerId", cleanCid);

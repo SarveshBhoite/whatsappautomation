@@ -14,7 +14,7 @@ const validatePayload = (req: any, res: any, next: any) => {
 router.post("/performance-max", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await StoreVisitsPerformanceMaxService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {

@@ -170,6 +170,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
       // 1. Resolve InstagramConfig by pageId or instagramAccountId
       let igConfig = await prisma.instagramConfig.findFirst({
         where: {
+          isActive: true,
           OR: [
             { pageId },
             { instagramAccountId: pageId }
@@ -181,25 +182,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
       if (!igConfig && entry?.id) {
         igConfig = await prisma.instagramConfig.findFirst({
           where: {
+            isActive: true,
             OR: [
               { instagramAccountId: entry.id },
               { pageId: entry.id }
             ]
           },
-          include: { organization: true }
-        });
-      }
-
-      if (!igConfig) {
-        igConfig = await prisma.instagramConfig.findFirst({
-          where: { isDefault: true, isActive: true },
-          include: { organization: true }
-        });
-      }
-
-      if (!igConfig) {
-        igConfig = await prisma.instagramConfig.findFirst({
-          where: { isActive: true },
           include: { organization: true }
         });
       }
@@ -252,12 +240,19 @@ export const handleWebhook = async (req: Request, res: Response) => {
         content = `[Customer clicked Meta Ad: "${adHeadline}"] ${content}`;
       }
 
-      // Find or create conversation
+      // Find or create conversation scoped to this Instagram account
+      const currentHandle = igConfig.username || igConfig.instagramAccountId;
       let conversation = await prisma.conversation.findFirst({
         where: {
           organizationId,
           platform: "instagram",
           customerPhone,
+          OR: [
+            { accountHandle: currentHandle },
+            { accountHandle: igConfig.instagramAccountId },
+            ...(igConfig.username ? [{ accountHandle: igConfig.username }] : []),
+            { accountHandle: null }
+          ]
         },
       });
 

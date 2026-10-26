@@ -27,7 +27,7 @@ export function LanguageDropdown({ selectedLanguages, setSelectedLanguages, cust
     async function fetchLanguages() {
       setIsLoading(true);
       try {
-        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
         const cid = customerId || "6587355041";
         const res = await fetch(`${BACKEND}/api/ads/languages?orgId=${encodeURIComponent(orgId)}&customerId=${encodeURIComponent(cid)}`);
         if (res.ok) {

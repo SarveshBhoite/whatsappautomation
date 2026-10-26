@@ -286,7 +286,6 @@ const MediaNodeComponent = ({ data }: any) => {
 
 // Configure backend base URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-const DEFAULT_ORG_ID = "demo-org-123";
 
 // TS Interfaces
 interface Message {
@@ -393,10 +392,11 @@ export default function Dashboard() {
       const org = localStorage.getItem("organization_id");
       if (org) return org;
     }
-    return DEFAULT_ORG_ID;
+    return "";
   };
 
   // Instagram Config & Accounts
+  const [loadingConfig, setLoadingConfig] = useState(true);
   const [igConfig, setIgConfig] = useState<InstagramConfig>({
     instagramAccountId: "",
     pageId: "",
@@ -865,13 +865,12 @@ export default function Dashboard() {
       );
     });
 
-    // Initial Fetch
-    fetchConversations();
+    // Initial Fetch: Load Instagram config first so conversations are fetched strictly for the active account
     fetchConfig();
-    fetchInstagramConfig();
     fetchGoogleConfig();
     fetchIgComments();
     fetchActiveFlow("instagram");
+    fetchInstagramConfig();
 
     return () => {
       socket.disconnect();
@@ -986,28 +985,34 @@ export default function Dashboard() {
 
   const fetchInstagramConfig = async () => {
     try {
+      setLoadingConfig(true);
       const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
         headers: { "x-organization-id": getOrgId() }
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setIgAccounts([]);
+        setConversations([]);
+        return;
+      }
       const data = await res.json();
-      if (data && data.config) {
-        setIgConfig(data.config);
-        setSelectedIgAccountId(data.config.id);
-      } else if (data && data.instagramAccountId) {
-        setIgConfig(data);
-        if (data.id) setSelectedIgAccountId(data.id);
-      } else {
+      const accountsList = (data && data.accounts) ? data.accounts : [];
+      setIgAccounts(accountsList);
+
+      if (accountsList.length === 0) {
         setIgConfig({ instagramAccountId: "", pageId: "", pageAccessToken: "" });
         setSelectedIgAccountId("");
-      }
-      if (data && data.accounts) {
-        setIgAccounts(data.accounts);
+        setConversations([]);
+        setActiveConv(null);
       } else {
-        setIgAccounts([]);
+        const activeAcc = (data && data.config) || accountsList.find((a: any) => a.isDefault) || accountsList[0];
+        setIgConfig(activeAcc);
+        setSelectedIgAccountId(activeAcc.id || "");
+        await fetchConversations(activeAcc.id);
       }
     } catch (err) {
       console.warn("Could not fetch Instagram config:", err);
+    } finally {
+      setLoadingConfig(false);
     }
   };
 
@@ -1457,13 +1462,29 @@ export default function Dashboard() {
                       ))}
                     </div>
                   ) : filteredConversations.length === 0 ? (
-                    <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
-                      {isInstagramTab ? (
-                        <Instagram className="h-8 w-8 stroke-1 text-pink-400/60" />
+                    <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-3">
+                      <div className="h-12 w-12 rounded-2xl bg-pink-50 border border-pink-200/80 flex items-center justify-center text-pink-500 shadow-2xs">
+                        <Instagram className="h-6 w-6 stroke-1" />
+                      </div>
+                      {isInstagramTab && igAccounts.length === 0 && !loadingConfig ? (
+                        <>
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold text-slate-700">No Instagram Account Connected</p>
+                            <p className="text-[11px] text-slate-400 max-w-[200px] leading-relaxed">
+                              Connect your Instagram Professional or Business account to view and respond to Direct Messages.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab("profile")}
+                            className="mt-1 px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                          >
+                            Connect Instagram
+                          </button>
+                        </>
                       ) : (
-                        <WhatsApp className="h-8 w-8 text-emerald-400/60" />
+                        <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
                       )}
-                      <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
                     </div>
                   ) : (
                     filteredConversations.map((conv) => {
@@ -2010,10 +2031,28 @@ export default function Dashboard() {
                       <div className="h-20 w-20 rounded-full flex items-center justify-center shadow-sm border bg-pink-50 text-pink-600 border-pink-200">
                         <Instagram className="h-10 w-10 stroke-1" />
                       </div>
-                      <h3 className="text-xl font-extrabold text-slate-900">Instagram Direct Messaging</h3>
-                      <p className="text-sm text-slate-500 leading-relaxed">
-                        Select an active conversation from the sidebar inbox to view messages, handle comments, or reply directly.
-                      </p>
+                      {isInstagramTab && igAccounts.length === 0 && !loadingConfig ? (
+                        <>
+                          <h3 className="text-xl font-extrabold text-slate-900">No Instagram Account Connected</h3>
+                          <p className="text-sm text-slate-500 leading-relaxed max-w-sm">
+                            Connect your Instagram Professional or Creator account in Profile & API Config to start syncing DMs and automated replies.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab("profile")}
+                            className="mt-2 px-5 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-xl text-sm font-bold shadow-md shadow-pink-500/20 transition-all cursor-pointer"
+                          >
+                            Connect Account
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <h3 className="text-xl font-extrabold text-slate-900">Instagram Direct Messaging</h3>
+                          <p className="text-sm text-slate-500 leading-relaxed">
+                            Select an active conversation from the sidebar inbox to view messages, handle comments, or reply directly.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

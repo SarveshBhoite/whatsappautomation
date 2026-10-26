@@ -272,16 +272,16 @@ export class YoutubeDisplayLocalService extends GoogleAdsBaseService {
   }
 
   public static async createCampaign(organizationId: string, customerId: string, payload: any) {
-    // ── 1. STRICT PREFLIGHT VALIDATION (NO FAKES / PLACEHOLDERS / DEMO IDS) ──
-    if (!organizationId || organizationId.trim().length === 0 || organizationId === "demo-org-123") {
-      throw new Error("A valid Organization ID is required. Demo organization IDs are not allowed.");
+    // ── 1. STRICT PREFLIGHT VALIDATION (NO FAKES / PLACEHOLDERS) ──
+    if (!organizationId || organizationId.trim().length === 0) {
+      throw new Error("A valid Organization ID is required.");
     }
 
     if (!customerId || customerId.trim().length === 0) {
       throw new Error("Customer ID is required for Display campaign creation.");
     }
     const cleanCid = customerId.replace(/-/g, "").trim();
-    const fakeCids = ["1234567890", "0000000000", "default", "demo-org-123"];
+    const fakeCids = ["1234567890", "0000000000", "default"];
     if (!cleanCid || fakeCids.includes(cleanCid) || !/^\d{10}$/.test(cleanCid)) {
       throw new Error(`A valid 10-digit Google Ads Customer ID is required (received: "${customerId}"). Placeholder account IDs are not permitted.`);
     }

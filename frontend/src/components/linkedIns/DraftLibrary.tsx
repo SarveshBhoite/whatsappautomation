@@ -22,7 +22,7 @@ interface DraftLibraryProps {
 }
 
 export function DraftLibrary({
-  organizationId = "demo-org-123",
+  organizationId = "",
   drafts,
   loading = false,
   onRefresh,

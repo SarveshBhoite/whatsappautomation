@@ -361,7 +361,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingBidding(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cleanCid = customerId.replace(/-/g, "").trim();
       const res = await fetch(`${BACKEND}/api/ads/bidding/portfolio-strategies?customerId=${encodeURIComponent(cleanCid)}`, {
         headers: { "x-organization-id": orgId }
@@ -667,7 +667,7 @@ export function AiCampaignAssistantModal({
 
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const historyPayload = newMessages.map((m) => ({
         role: m.role,
@@ -732,7 +732,7 @@ export function AiCampaignAssistantModal({
     setIsValidatingPreflight(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/preflight`, {
         method: "POST",
@@ -782,7 +782,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingKeywordIntel(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/keyword-intelligence`, {
         method: "POST",
@@ -931,7 +931,7 @@ export function AiCampaignAssistantModal({
       setIsLoadingProfile(true);
       try {
         const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
         const res = await fetch(
           `${BACKEND}/api/ads/ai-guided/user-profile?customerId=${encodeURIComponent(requestedCid)}&orgId=${encodeURIComponent(orgId)}`,
@@ -1117,7 +1117,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingFinalReview(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/final-review`, {
         method: "POST",
@@ -1166,7 +1166,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingExtensionsAssets(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/extensions-assets`, {
         method: "POST",
@@ -1224,7 +1224,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingShoppingIntel(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/shopping-intelligence`, {
         method: "POST",
@@ -1293,7 +1293,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingAppIntel(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/app-intelligence`, {
         method: "POST",
@@ -1360,7 +1360,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingConversionGoalIntel(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/conversion-goal-intelligence`, {
         method: "POST",
@@ -1416,7 +1416,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingRecommendations(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/recommendations`, {
         method: "POST",
@@ -1501,7 +1501,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingForecast(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/performance-forecast`, {
         method: "POST",
@@ -1566,7 +1566,7 @@ export function AiCampaignAssistantModal({
     setIsLoadingAudienceIntel(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/audience-intelligence`, {
         method: "POST",
@@ -1781,7 +1781,7 @@ export function AiCampaignAssistantModal({
 
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/create-campaign`, {
         method: "POST",
@@ -1961,7 +1961,7 @@ export function AiCampaignAssistantModal({
 
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       const res = await fetch(`${BACKEND}/api/ads/ai-guided/save-profile`, {
         method: "POST",

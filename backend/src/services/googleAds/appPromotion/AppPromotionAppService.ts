@@ -117,8 +117,8 @@ export class AppPromotionAppService extends GoogleAdsBaseService {
 
   public static async createCampaign(organizationId: string, customerId: string, payload: any) {
     // ── 1. STRICT PREFLIGHT VALIDATION ──
-    if (!organizationId || organizationId.trim().length === 0 || organizationId === "demo-org-123") {
-      throw new Error("A valid Organization ID is required. Demo organization IDs are not allowed.");
+    if (!organizationId || organizationId.trim().length === 0) {
+      throw new Error("A valid Organization ID is required.");
     }
 
     if (!customerId || customerId.trim().length === 0) {

@@ -135,7 +135,7 @@ function LeadsPerformanceMaxContent() {
       if (!customerId) return;
       try {
         const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+        const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
         const res = await fetch(`${BACKEND}/api/ads/campaigns?customerId=${encodeURIComponent(customerId)}`, {
           headers: {
             "x-organization-id": orgId
@@ -5019,7 +5019,7 @@ function LeadsPerformanceMaxContent() {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      "x-organization-id": "demo-org-123"
+                      "x-organization-id": ""
                     },
                     body: JSON.stringify(payload)
                   });

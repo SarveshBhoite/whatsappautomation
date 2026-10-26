@@ -114,7 +114,10 @@ async function resolveEffectiveCustomerId(orgId: string, explicitCustomerId?: st
 // GET /api/ads/ai-guided/user-profile — Fetch detailed login, organization & Google Ads business profile
 router.get("/user-profile", async (req, res) => {
   try {
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body?.orgId || "") as string;
+    if (!orgId) {
+      return res.status(401).json({ error: "ORGANIZATION_REQUIRED", message: "Please log in to your organization workspace." });
+    }
     const customerId = (req.query.customerId || "") as string;
 
     const org = await (prisma.organization as any).findUnique({
@@ -454,7 +457,10 @@ router.get("/user-profile", async (req, res) => {
 // GET /api/ads/ai-guided/calendar-opportunities — Standalone Indian Festival & Holiday Calendar Opportunities
 router.get("/calendar-opportunities", async (req, res) => {
   try {
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body?.orgId || "") as string;
+    if (!orgId) {
+      return res.status(401).json({ error: "ORGANIZATION_REQUIRED", message: "Please log in to your organization workspace." });
+    }
     const customerId = (req.query.customerId || "") as string;
     const cleanCid = customerId ? customerId.replace(/-/g, "").trim() : "";
     const requestedYear = req.query.year ? parseInt(req.query.year as string, 10) : undefined;

@@ -10,7 +10,7 @@ export class GoogleCalendarService {
   /**
    * Helper to construct an OAuth2 client with valid credentials for an organization or specific googleAccountId
    */
-  public static async getOAuth2Client(googleAccountId?: string, organizationId: string = "demo-org-123") {
+  public static async getOAuth2Client(googleAccountId?: string, organizationId: string = "") {
     let config: any = null;
 
     if (googleAccountId) {
@@ -81,7 +81,7 @@ export class GoogleCalendarService {
   /**
    * Fetch all accessible calendars for a connected Google Account
    */
-  public static async listCalendars(googleAccountId?: string, organizationId: string = "demo-org-123") {
+  public static async listCalendars(googleAccountId?: string, organizationId: string = "") {
     const { oauth2Client } = await this.getOAuth2Client(googleAccountId, organizationId);
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 

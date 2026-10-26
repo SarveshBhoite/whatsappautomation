@@ -2,7 +2,10 @@ import { Router, Request, Response } from "express";
 import { LeadsCampaignService } from "../../services/meta-ads/leadsCampaignService";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
+
+const getOrgId = (req: Request): string => {
+  return (req.headers["x-organization-id"] as string) || (req.query.organizationId as string) || (req.body?.organizationId as string) || "";
+};
 
 /**
  * POST /api/meta-ads/campaigns/leads
@@ -10,7 +13,10 @@ const DEFAULT_ORG_ID = "demo-org-123";
  */
 router.post("/campaigns/leads", async (req: Request, res: Response) => {
   try {
-    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) {
+      return res.status(400).json({ success: false, error: "Organization required" });
+    }
     const { name, creativeHeadline, creativeBody } = req.body;
 
     if (!name || !creativeHeadline || !creativeBody) {
@@ -34,7 +40,8 @@ router.post("/campaigns/leads", async (req: Request, res: Response) => {
  */
 router.get("/leadgen-forms", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.json({ success: true, forms: [] });
     const pageId = req.query.pageId as string;
     const forms = await LeadsCampaignService.getLeadGenForms(orgId, pageId);
     res.json({ success: true, forms });
@@ -50,7 +57,8 @@ router.get("/leadgen-forms", async (req: Request, res: Response) => {
  */
 router.post("/leadgen-forms", async (req: Request, res: Response) => {
   try {
-    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.status(400).json({ success: false, error: "Organization required" });
     const pageId = req.body.pageId;
     if (!pageId) {
       return res.status(400).json({ success: false, error: "Facebook Page ID is required to create a Lead Form." });
@@ -69,7 +77,8 @@ router.post("/leadgen-forms", async (req: Request, res: Response) => {
  */
 router.get("/leadgen-forms/:id/leads", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = getOrgId(req);
+    if (!orgId) return res.json({ success: true, leads: [] });
     const formId = req.params.id as string;
     const leads = await LeadsCampaignService.getFormLeads(orgId, formId);
     res.json({ success: true, leads });

@@ -33,7 +33,7 @@ export default function LeadsDisplayPage() {
     if (customLocationInput.trim().length >= 1) {
       setIsSearchingLocations(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "6587355041";
 
       const timer = setTimeout(async () => {
@@ -3358,7 +3358,7 @@ export default function LeadsDisplayPage() {
 
                 try {
                   const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-                  const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+                  const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
                   const targetCid = customerId || "6587355041";
 
                   const resolvedBiddingStrategy = conversionBiddingType === "TARGET_CPA"

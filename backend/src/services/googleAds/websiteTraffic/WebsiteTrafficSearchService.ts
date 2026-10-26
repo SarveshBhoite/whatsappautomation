@@ -205,7 +205,7 @@ export class WebsiteTrafficSearchService extends GoogleAdsBaseService {
     // ── 1. AI GUIDED STRICT PRE-FLIGHT VALIDATION ──
     if (isAiGuided) {
       const cleanCid = (customerId || "").replace(/-/g, "").trim();
-      const fakeCids = ["1234567890", "default", "demo-org-123"];
+      const fakeCids = ["1234567890", "default"];
       if (!cleanCid || fakeCids.includes(cleanCid) || !/^\d{10}$/.test(cleanCid)) {
         throw new Error("A valid 10-digit Google Ads Customer ID is required for AI-guided campaign creation.");
       }

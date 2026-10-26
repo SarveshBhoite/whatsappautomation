@@ -3093,7 +3093,7 @@ export default function  NoGuidanceAppPage()  {
                   }
 
                   const storedOrgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
-                  if (!storedOrgId || storedOrgId === "demo-org-123") {
+                  if (!storedOrgId || storedOrgId === "") {
                     throw new Error("A valid Organization ID is required. Demo organization IDs are not allowed.");
                   }
                   if (!customerId) {

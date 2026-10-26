@@ -35,7 +35,7 @@ interface LinkedInProfileCardProps {
 export function LinkedInProfileCard({
   profile,
   config = {},
-  organizationId = "demo-org-123",
+  organizationId = "",
   onRefreshSuccess,
   onDisconnectSuccess
 }: LinkedInProfileCardProps) {

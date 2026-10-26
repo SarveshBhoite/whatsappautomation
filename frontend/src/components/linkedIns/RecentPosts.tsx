@@ -39,7 +39,7 @@ interface RecentPostsProps {
 
 export function RecentPosts({
   posts,
-  organizationId = "demo-org-123",
+  organizationId = "",
   loading = false,
   onRefresh,
   onOpenComposer,

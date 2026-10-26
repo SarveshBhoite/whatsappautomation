@@ -402,7 +402,7 @@ export function GoogleAdsProfileModal({
   isOpen,
   onClose,
   customerId,
-  orgId = "demo-org-123"
+  orgId = ""
 }: GoogleAdsProfileModalProps) {
   const [profile, setProfile] = useState<CustomerProfileData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);

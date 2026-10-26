@@ -10,7 +10,7 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || "";
 const REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || "http://localhost:5000/api/gmb/oauth/callback";
 
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || (req.query.orgId as string) || "demo-org-123";
+  return (req.headers["x-organization-id"] as string) || (req.query.orgId as string) || (req.body?.orgId as string) || "";
 };
 
 // 1. GET: Generate Google OAuth URL for Calendar Scopes
@@ -53,14 +53,18 @@ router.get("/callback", async (req: Request, res: Response) => {
       return res.status(400).send("Missing authorization code in Google callback");
     }
 
-    let orgId = "demo-org-123";
+    let orgId = "";
     if (state) {
       try {
         const parsed = JSON.parse(state as string);
         if (parsed.orgId) orgId = parsed.orgId;
       } catch (e) {
-        // Fallback
+        orgId = state as string;
       }
+    }
+
+    if (!orgId) {
+      return res.status(400).send("Organization ID missing in OAuth state");
     }
 
     const oauth2Client = new google.auth.OAuth2(

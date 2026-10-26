@@ -44,9 +44,9 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:500
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("organization_id") || "demo-org-123";
+    return localStorage.getItem("organization_id") || "";
   }
-  return "demo-org-123";
+  return "";
 };
 
 interface AppointmentItem {

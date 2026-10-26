@@ -66,7 +66,7 @@ const getOrgId = (): string => {
     const org = localStorage.getItem("organization_id");
     if (org) return org;
   }
-  return "demo-org-123";
+  return "";
 };
 
 interface ConversationMessage {

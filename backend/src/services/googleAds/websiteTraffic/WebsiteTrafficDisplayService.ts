@@ -289,7 +289,7 @@ export class WebsiteTrafficDisplayService extends GoogleAdsBaseService {
       throw new Error("Customer ID is required for Display campaign creation.");
     }
     const cleanCid = customerId.replace(/-/g, "").trim();
-    const fakeCids = ["1234567890", "0000000000", "default", "demo-org-123"];
+    const fakeCids = ["1234567890", "0000000000", "default"];
     if (!cleanCid || fakeCids.includes(cleanCid) || !/^\d{10}$/.test(cleanCid)) {
       throw new Error(`A valid 10-digit Google Ads Customer ID is required (received: "${customerId}").`);
     }

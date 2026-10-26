@@ -6,13 +6,23 @@ import { GoogleCalendarService } from "../services/googleCalendarService";
 const router = Router();
 
 const getOrgId = (req: Request): string => {
-  return (req.headers["x-organization-id"] as string) || (req.query.orgId as string) || "demo-org-123";
+  return (req.headers["x-organization-id"] as string) || (req.query.orgId as string) || (req.body?.orgId as string) || "";
 };
 
 // 1. GET: List Appointments for Organization with Search, Filters, Pagination & Summary Counts
 router.get("/", async (req: Request, res: Response) => {
   try {
     const orgId = getOrgId(req);
+    if (!orgId) {
+      return res.status(200).json({
+        appointments: [],
+        total: 0,
+        page: 1,
+        pageSize: 25,
+        totalPages: 0,
+        summary: { total: 0, scheduled: 0, completed: 0, cancelled: 0, noShow: 0, googleMeetCount: 0 }
+      });
+    }
     const {
       search,
       status,

@@ -38,7 +38,7 @@ interface ScheduleQueueProps {
 }
 
 export function ScheduleQueue({
-  organizationId = "demo-org-123",
+  organizationId = "",
   scheduledPosts,
   loading = false,
   onRefresh,

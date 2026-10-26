@@ -72,7 +72,7 @@ export function GoogleAdsLocationRadiusSelector({
     if (searchInput.trim().length >= 2) {
       setIsSearching(true);
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
       const cid = customerId || "8627341950";
 
       const timer = setTimeout(async () => {

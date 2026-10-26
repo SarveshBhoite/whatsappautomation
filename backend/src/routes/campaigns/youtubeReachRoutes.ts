@@ -39,7 +39,7 @@ router.post("/demand-gen", validatePayload, async (req, res) => {
     res.status(200).json(result);
   } catch (error: any) {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const budgetErr = GoogleAdsBaseService.parseGoogleAdsBudgetError(error, {
       organizationId: orgId,
       customerId: (customerId || "").replace(/-/g, "").trim(),

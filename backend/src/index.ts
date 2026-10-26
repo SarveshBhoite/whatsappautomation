@@ -157,7 +157,11 @@ io.on("connection", (socket) => {
 
   // Join a client-specific room so agents only get updates for their company
   socket.on("join-org", (organizationId: string) => {
-    const org = (organizationId && organizationId.trim()) ? organizationId.trim() : "demo-org-123";
+    if (!organizationId || !organizationId.trim()) {
+      console.warn(`Socket ${socket.id} attempted to join room without organization ID.`);
+      return;
+    }
+    const org = organizationId.trim();
     socket.join(org);
     console.log(`Socket ${socket.id} joined organization room: ${org}`);
   });

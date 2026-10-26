@@ -9,7 +9,7 @@ interface EnterpriseReportsProps {
   scheduledCount?: number;
 }
 
-export function EnterpriseReports({ organizationId = "demo-org-123", publishedCount = 0, scheduledCount = 0 }: EnterpriseReportsProps) {
+export function EnterpriseReports({ organizationId = "", publishedCount = 0, scheduledCount = 0 }: EnterpriseReportsProps) {
   const [exporting, setExporting] = useState<string | null>(null);
 
   const handleExport = async (type: "weekly-csv" | "weekly-pdf" | "monthly-excel" | "monthly-pdf" | "audit-csv") => {

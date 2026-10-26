@@ -4304,11 +4304,11 @@ function LocalPerformanceMaxContent() {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      "x-organization-id": (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123"
+                      "x-organization-id": (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || ""
                     },
                     body: JSON.stringify({
                       ...payload,
-                      orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123"
+                      orgId: (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || ""
                     })
                   });
 

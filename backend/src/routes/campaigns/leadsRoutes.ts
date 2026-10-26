@@ -20,7 +20,7 @@ const validatePayload = (req: any, res: any, next: any) => {
 router.post("/performance-max", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await LeadsPerformanceMaxService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -48,7 +48,7 @@ router.post("/performance-max", validatePayload, async (req, res) => {
 router.post("/search", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await LeadsSearchService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -63,12 +63,12 @@ router.post("/search", validatePayload, async (req, res) => {
 router.post("/demand-gen", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await LeadsDemandGenService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const budgetErr = GoogleAdsBaseService.parseGoogleAdsBudgetError(error, {
       organizationId: orgId,
       customerId: (customerId || "").replace(/-/g, "").trim(),
@@ -93,7 +93,7 @@ router.post("/demand-gen", validatePayload, async (req, res) => {
 router.post("/video", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await LeadsVideoService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -104,7 +104,7 @@ router.post("/video", validatePayload, async (req, res) => {
 router.post("/display", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await LeadsDisplayService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {
@@ -115,7 +115,7 @@ router.post("/display", validatePayload, async (req, res) => {
 router.post("/shopping", validatePayload, async (req, res) => {
   try {
     const { customerId, ...payload } = req.body;
-    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "demo-org-123") as string;
+    const orgId = (req.headers["x-organization-id"] || req.query.orgId || req.body.orgId || "") as string;
     const result = await LeadsShoppingService.createCampaign(orgId, customerId, payload);
     res.status(200).json(result);
   } catch (error: any) {

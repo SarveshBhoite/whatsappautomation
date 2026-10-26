@@ -4,30 +4,29 @@ import prisma from "../utils/prisma";
 
 const router = Router();
 
-const DEFAULT_ORG_ID = "demo-org-123";
-
 const getOrgId = (req: Request): string => {
   const headerVal = req.headers["x-organization-id"];
   if (Array.isArray(headerVal) && headerVal[0]) return headerVal[0];
-  if (typeof headerVal === "string" && headerVal.trim() !== "") return headerVal;
-  return DEFAULT_ORG_ID;
+  if (typeof headerVal === "string" && headerVal.trim() !== "") return headerVal.trim();
+  return (req.query.orgId as string) || (req.body?.orgId as string) || "";
 };
 
 // GET: Fetch current organization's WhatsApp connection status and active config
 router.get("/status", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    let configs = await prisma.whatsAppConfig.findMany({
+    if (!organizationId) {
+      return res.status(200).json({
+        connected: false,
+        config: null,
+        accounts: [],
+      });
+    }
+
+    const configs = await prisma.whatsAppConfig.findMany({
       where: { organizationId, isActive: true },
       orderBy: { createdAt: "desc" },
     });
-
-    if (configs.length === 0) {
-      configs = await prisma.whatsAppConfig.findMany({
-        where: { isActive: true },
-        orderBy: { createdAt: "desc" },
-      });
-    }
 
     const activeConfig = configs.find((c) => c.isDefault) || configs[0] || null;
 
@@ -170,16 +169,14 @@ router.get("/accounts", async (req: Request, res: Response) => {
     const organizationId = getOrgId(req);
     const { sync } = req.query;
 
+    if (!organizationId) {
+      return res.status(200).json({ success: true, accounts: [] });
+    }
+
     let accounts = await prisma.whatsAppConfig.findMany({
-      where: { OR: [{ organizationId }, { organizationId: "demo-org-123" }] },
+      where: { organizationId, isActive: true },
       orderBy: { createdAt: "desc" },
     });
-
-    if (accounts.length === 0) {
-      accounts = await prisma.whatsAppConfig.findMany({
-        orderBy: { createdAt: "desc" },
-      });
-    }
 
     // Auto-sync in background or synchronously only if explicitly requested
     const tokenConfig = accounts.find((a) => a.accessToken);
@@ -187,7 +184,7 @@ router.get("/accounts", async (req: Request, res: Response) => {
       if (sync === "true") {
         await syncAllWhatsAppAccountsForToken(organizationId, tokenConfig.accessToken, tokenConfig.wabaId || undefined).catch(() => {});
         accounts = await prisma.whatsAppConfig.findMany({
-          where: { OR: [{ organizationId }, { organizationId: "demo-org-123" }] },
+          where: { organizationId, isActive: true },
           orderBy: { createdAt: "desc" },
         });
       } else {

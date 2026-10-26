@@ -455,7 +455,7 @@ export default function NoGuidanceSearchPage() {
   // Load existing campaigns from Google Ads / DB once on component mount & restore prefill
   useEffect(() => {
     const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+    const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
     const targetCid = customerId || "6587355041";
 
     // Check for AI-Guided prefill campaign state from localStorage
@@ -938,7 +938,7 @@ export default function NoGuidanceSearchPage() {
     setIsPublishing(true);
     try {
       const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
-      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "demo-org-123";
+      const orgId = (typeof window !== "undefined" ? localStorage.getItem("organization_id") : null) || "";
 
       // 10. Safe connection check before publishing
       try {

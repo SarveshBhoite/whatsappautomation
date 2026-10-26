@@ -5115,7 +5115,7 @@ function NoGuidancePerformanceMaxContent() {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      "x-organization-id": "demo-org-123"
+                      "x-organization-id": ""
                     },
                     body: JSON.stringify(payload)
                   });

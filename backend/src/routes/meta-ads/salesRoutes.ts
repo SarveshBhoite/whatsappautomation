@@ -2,7 +2,6 @@ import { Router, Request, Response } from "express";
 import { SalesCampaignService } from "../../services/meta-ads/salesCampaignService";
 
 const router = Router();
-const DEFAULT_ORG_ID = "demo-org-123";
 
 /**
  * POST /api/meta-ads/campaigns/sales
@@ -10,7 +9,10 @@ const DEFAULT_ORG_ID = "demo-org-123";
  */
 router.post("/campaigns/sales", async (req: Request, res: Response) => {
   try {
-    const orgId = req.body.organizationId || DEFAULT_ORG_ID;
+    const orgId = req.body.organizationId || (req.headers["x-organization-id"] as string) || "";
+    if (!orgId) {
+      return res.status(400).json({ success: false, error: "Organization required" });
+    }
     const { name, creativeHeadline, creativeBody } = req.body;
 
     if (!name || !creativeHeadline || !creativeBody) {

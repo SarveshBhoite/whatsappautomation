@@ -136,7 +136,7 @@ export default function OverviewDashboardPage() {
       const stored = localStorage.getItem("organization_id");
       if (stored) return stored;
     }
-    return "demo-org-123";
+    return "";
   };
 
   const fetchOverview = async (isManual = false) => {
