@@ -1573,6 +1573,7 @@ export default function Dashboard() {
             <AccountSwitcher
               title="YouTube Channel"
               theme="red"
+              align="right"
               addNewAccountText="Link Another YouTube Channel"
               accounts={(() => {
                 const sourceList = youtubeAccounts.length > 0

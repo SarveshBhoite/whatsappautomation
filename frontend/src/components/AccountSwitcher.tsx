@@ -66,13 +66,31 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
     ? "blue"
     : "indigo";
 
+  const [resolvedAlign, setResolvedAlign] = useState<"left" | "right">(align);
+
   const handleToggle = () => {
     const nextState = !isOpen;
-    setIsOpen(nextState);
-    if (nextState && onToggleOpen) {
-      onToggleOpen();
+    if (nextState) {
+      if (dropdownRef.current) {
+        const rect = dropdownRef.current.getBoundingClientRect();
+        const screenWidth = window.innerWidth;
+        // If aligning left would overflow the right edge of viewport (w-84/w-96 is ~384px), align right
+        if (align === "right" || rect.left + 384 > screenWidth - 16) {
+          setResolvedAlign("right");
+        } else {
+          setResolvedAlign("left");
+        }
+      }
+      if (onToggleOpen) {
+        onToggleOpen();
+      }
     }
+    setIsOpen(nextState);
   };
+
+  useEffect(() => {
+    setResolvedAlign(align);
+  }, [align]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -244,7 +262,7 @@ export const AccountSwitcher: React.FC<AccountSwitcherProps> = ({
 
       {/* Floating Dropdown Modal */}
       {isOpen && (
-        <div className={`absolute ${align === "right" ? "right-0 origin-top-right" : "left-0 origin-top-left"} mt-2 w-84 sm:w-96 rounded-2xl bg-white shadow-2xl border border-slate-200/90 ring-1 ring-black/5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden`}>
+        <div className={`absolute ${resolvedAlign === "right" ? "right-0 origin-top-right" : "left-0 origin-top-left"} mt-2 w-84 sm:w-96 max-w-[calc(100vw-24px)] rounded-2xl bg-white shadow-2xl border border-slate-200/90 ring-1 ring-black/5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden`}>
             {/* Header Bar */}
             <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
               <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
