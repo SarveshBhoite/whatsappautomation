@@ -177,8 +177,12 @@ router.get("/profile", async (req: Request, res: Response) => {
 
     console.log(`[LINKEDIN PERSONAL] Returning profile for ${profile?.name || config.memberName || organizationId}: Followers = ${followersCount ?? "N/A (unsupported by scope)"}`);
 
+    const isExpired = Boolean(config.tokenExpiry && new Date() > config.tokenExpiry);
+
     return res.status(200).json({
-      connected: true,
+      connected: !isExpired,
+      tokenExpired: isExpired,
+      tokenError: isExpired ? "LinkedIn personal authorization has expired. Please reconnect your account." : null,
       profile: profile ? { ...profile, followersCount } : null,
       config: config ? { ...config, followersCount } : null
     });
@@ -186,6 +190,18 @@ router.get("/profile", async (req: Request, res: Response) => {
     const status = error.response?.status || 500;
     const details = error.response?.data || error.message;
     console.error(`[LINKEDIN] API Error [HTTP ${status}] - Fetching profile:`, details);
+
+    // If token was revoked or rejected by LinkedIn (401 or 403), return clean tokenExpired state
+    if (status === 401 || status === 403) {
+      return res.status(200).json({
+        connected: false,
+        tokenExpired: true,
+        tokenError: "LinkedIn personal authorization has expired or was revoked. Please reconnect your account.",
+        profile: null,
+        config: null
+      });
+    }
+
     return res.status(status).json({ error: "Failed to fetch LinkedIn profile", details });
   }
 });
@@ -1166,12 +1182,26 @@ router.get("/org/profile", async (req: Request, res: Response) => {
 
     console.log(`[CRM3] /api/linkedin/org/profile requested for org ${organizationId}. Company: ${orgProfile.companyName}, Followers: ${followersCount}`);
 
+    const isExpired = Boolean(config.tokenExpiry && new Date() > config.tokenExpiry);
+
     return res.status(200).json({
-      connected: true,
+      connected: !isExpired,
+      tokenExpired: isExpired,
+      tokenError: isExpired ? "LinkedIn Company Page authorization has expired. Please reconnect your company page." : null,
       profile: orgProfile,
       config
     });
   } catch (err: any) {
+    const status = err?.response?.status || 500;
+    if (status === 401 || status === 403) {
+      return res.status(200).json({
+        connected: false,
+        tokenExpired: true,
+        tokenError: "LinkedIn Company Page authorization has expired or was revoked. Please reconnect your company page.",
+        profile: null,
+        config: null
+      });
+    }
     return res.status(500).json({ error: "Failed to fetch organization profile", details: err.message });
   }
 });

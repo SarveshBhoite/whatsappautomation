@@ -54,7 +54,19 @@ const LinkedInIcon = ({ className = "h-5 w-5", ...props }: React.SVGProps<SVGSVG
   </svg>
 );
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const getApiBaseUrl = (): string => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (process.env.NEXT_PUBLIC_BACKEND_URL) return process.env.NEXT_PUBLIC_BACKEND_URL;
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
+      return `${window.location.protocol}//${hostname}:5000`;
+    }
+  }
+  return "http://localhost:5000";
+};
+
+const API_BASE_URL = getApiBaseUrl();
 const DEFAULT_ORG_ID = "";
 
 // Helper function to safely format values
@@ -331,6 +343,9 @@ function LinkedInPageContent() {
     }
   }, [searchParams, tabParam]);
 
+  const [personalTokenError, setPersonalTokenError] = useState<string | null>(null);
+  const [orgTokenError, setOrgTokenError] = useState<string | null>(null);
+
   // Helper to fetch user's active organizationId dynamically
   const getActiveOrgId = (): string => {
     if (typeof window !== "undefined") {
@@ -342,6 +357,21 @@ function LinkedInPageContent() {
   const [activeOrgId, setActiveOrgId] = useState<string>(DEFAULT_ORG_ID);
 
   useEffect(() => {
+    const handleOrgChange = () => {
+      const newOrg = getActiveOrgId();
+      setActiveOrgId(newOrg);
+    };
+
+    window.addEventListener("storage", handleOrgChange);
+    window.addEventListener("organization-switched", handleOrgChange);
+
+    return () => {
+      window.removeEventListener("storage", handleOrgChange);
+      window.removeEventListener("organization-switched", handleOrgChange);
+    };
+  }, []);
+
+  useEffect(() => {
     setActiveOrgId(getActiveOrgId());
   }, [activeTab]);
 
@@ -349,10 +379,17 @@ function LinkedInPageContent() {
   const fetchConfig = async () => {
     try {
       const orgId = getActiveOrgId();
-      const res = await fetch(`${API_BASE_URL}/api/linkedin/config`, {
+      let res = await fetch(`${API_BASE_URL}/api/linkedin/config`, {
         headers: { "x-organization-id": orgId }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`/api/linkedin/config`, {
+          headers: { "x-organization-id": orgId }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         setConfig((prev) => ({ ...prev, ...data, followersCount: prev.followersCount ?? data.followersCount }));
         if (data.profile) {
@@ -361,7 +398,7 @@ function LinkedInPageContent() {
         if (data.syncLogs) setSyncLogs(data.syncLogs);
       }
     } catch (err) {
-      console.error("[LINKEDIN] Failed to fetch config:", err);
+      console.warn("[LINKEDIN] Failed to fetch config:", err);
     }
   };
 
@@ -369,16 +406,28 @@ function LinkedInPageContent() {
   const fetchOrgConfig = async () => {
     try {
       const orgId = getActiveOrgId();
-      const res = await fetch(`${API_BASE_URL}/api/linkedin/org/profile`, {
+      let res = await fetch(`${API_BASE_URL}/api/linkedin/org/profile`, {
         headers: { "x-organization-id": orgId }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`/api/linkedin/org/profile`, {
+          headers: { "x-organization-id": orgId }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
+        if (data.tokenExpired) {
+          setOrgTokenError(data.tokenError || "LinkedIn Company Page authorization has expired. Please reconnect.");
+        } else {
+          setOrgTokenError(null);
+        }
         if (data.config) setOrgConfig(data.config);
         if (data.profile) setOrgProfile(data.profile);
       }
     } catch (err) {
-      console.error("[LINKEDIN ORG] Failed to fetch org config & profile:", err);
+      console.warn("[LINKEDIN ORG] Failed to fetch org config & profile:", err);
     }
   };
 
@@ -386,16 +435,28 @@ function LinkedInPageContent() {
   const fetchProfile = async () => {
     try {
       const orgId = getActiveOrgId();
-      const res = await fetch(`${API_BASE_URL}/api/linkedin/profile`, {
+      let res = await fetch(`${API_BASE_URL}/api/linkedin/profile`, {
         headers: { "x-organization-id": orgId }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`/api/linkedin/profile`, {
+          headers: { "x-organization-id": orgId }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
+        if (data.tokenExpired) {
+          setPersonalTokenError(data.tokenError || "LinkedIn personal authorization has expired. Please reconnect.");
+        } else {
+          setPersonalTokenError(null);
+        }
         if (data.profile) setProfile((prev) => ({ ...prev, ...data.profile }));
         if (data.config) setConfig((prev) => ({ ...prev, ...data.config }));
       }
     } catch (err) {
-      console.error("[LINKEDIN] Failed to fetch profile:", err);
+      console.warn("[LINKEDIN] Failed to fetch profile:", err);
     }
   };
 
@@ -406,16 +467,23 @@ function LinkedInPageContent() {
   const fetchPosts = async () => {
     try {
       const orgId = getActiveOrgId();
-      const res = await fetch(`${API_BASE_URL}/api/linkedin/posts`, {
+      let res = await fetch(`${API_BASE_URL}/api/linkedin/posts`, {
         headers: { "x-organization-id": orgId }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`/api/linkedin/posts`, {
+          headers: { "x-organization-id": orgId }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         if (data.posts) setPosts(data.posts);
         if (data.message) setPostsPermissionMessage(data.message);
       }
     } catch (err) {
-      console.error("[LINKEDIN] Failed to fetch posts:", err);
+      console.warn("[LINKEDIN] Failed to fetch posts:", err);
     }
   };
 
@@ -423,15 +491,22 @@ function LinkedInPageContent() {
   const fetchDrafts = async () => {
     try {
       const orgId = getActiveOrgId();
-      const res = await fetch(`${API_BASE_URL}/api/linkedin/drafts`, {
+      let res = await fetch(`${API_BASE_URL}/api/linkedin/drafts`, {
         headers: { "x-organization-id": orgId }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`/api/linkedin/drafts`, {
+          headers: { "x-organization-id": orgId }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         if (data.drafts) setDrafts(data.drafts);
       }
     } catch (err) {
-      console.error("[LINKEDIN] Failed to fetch drafts:", err);
+      console.warn("[LINKEDIN] Failed to fetch drafts:", err);
     }
   };
 
@@ -439,15 +514,22 @@ function LinkedInPageContent() {
   const fetchScheduled = async () => {
     try {
       const orgId = getActiveOrgId();
-      const res = await fetch(`${API_BASE_URL}/api/linkedin/scheduled`, {
+      let res = await fetch(`${API_BASE_URL}/api/linkedin/scheduled`, {
         headers: { "x-organization-id": orgId }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`/api/linkedin/scheduled`, {
+          headers: { "x-organization-id": orgId }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         if (data.scheduledPosts) setScheduledPosts(data.scheduledPosts);
       }
     } catch (err) {
-      console.error("[LINKEDIN] Failed to fetch scheduled posts:", err);
+      console.warn("[LINKEDIN] Failed to fetch scheduled posts:", err);
     }
   };
 
@@ -819,6 +901,75 @@ function LinkedInPageContent() {
                 </button>
               </div>
             </div>
+
+            {/* Expired Token / Reconnect Needed Prompt Banner (Personal or Company) */}
+            {activeTab === "profile" && personalTokenError && (
+              <div className="bg-gradient-to-r from-rose-500/15 via-red-500/10 to-amber-500/10 border-b border-rose-500/30 px-6 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 rounded-xl bg-rose-100 text-rose-600 shrink-0">
+                    <AlertCircle className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-extrabold text-rose-950 flex items-center gap-1.5">
+                      Personal LinkedIn Authorization Expired
+                    </span>
+                    <span className="text-[11px] text-rose-700">
+                      {personalTokenError}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleConnectOAuth}
+                    className="px-4 py-1.5 bg-[#0A66C2] hover:bg-[#084e96] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Reconnect Personal Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDisconnect}
+                    className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "company" && orgTokenError && (
+              <div className="bg-gradient-to-r from-rose-500/15 via-red-500/10 to-amber-500/10 border-b border-rose-500/30 px-6 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 rounded-xl bg-rose-100 text-rose-600 shrink-0">
+                    <AlertCircle className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-extrabold text-rose-950 flex items-center gap-1.5">
+                      LinkedIn Company Page Authorization Expired
+                    </span>
+                    <span className="text-[11px] text-rose-700">
+                      {orgTokenError}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleConnectOrgOAuth}
+                    className="px-4 py-1.5 bg-[#0A66C2] hover:bg-[#084e96] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="h-3 w-3" /> Reconnect Company Page
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDisconnectOrg}
+                    className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* TAB: PERSONAL PROFILE (CRM1 MODE) */}
             {activeTab === "profile" && (
