@@ -2046,7 +2046,9 @@ print(res.json())`;
 
   const fetchMessages = async (convId: string) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}/messages`);
+      const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}/messages`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {

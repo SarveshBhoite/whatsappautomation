@@ -910,8 +910,13 @@ export default function Dashboard() {
   const fetchMessages = async (convId: string) => {
     try {
       setLoadingMessages(true);
-      const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}/messages`);
-      if (!res.ok) return;
+      const res = await fetch(`${BACKEND_URL}/api/admin/conversations/${convId}/messages`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (!res.ok) {
+        console.warn(`[WHATSAPP] Failed to fetch messages for conversation ${convId}: HTTP ${res.status}`);
+        return;
+      }
       const data = await res.json();
       if (Array.isArray(data)) {
         setMessages(data);

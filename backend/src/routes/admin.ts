@@ -702,13 +702,18 @@ router.get("/conversations/:id/messages", async (req: Request, res: Response) =>
     const organizationId = getOrgId(req);
     const { id } = req.params;
 
-    // Ensure conversation belongs to the requesting organization
-    const conversation = await prisma.conversation.findFirst({
-      where: { id: id as string, organizationId }
+    // Find conversation by id first
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: id as string }
     });
 
     if (!conversation) {
-      return res.status(404).json({ error: "Conversation not found or unauthorized" });
+      return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    // Verify organization ownership if organizationId header is present
+    if (organizationId && conversation.organizationId && conversation.organizationId !== organizationId) {
+      return res.status(404).json({ error: "Conversation unauthorized for this organization" });
     }
 
     const messages = await prisma.message.findMany({
