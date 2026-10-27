@@ -122,6 +122,8 @@ export default function AdminPage() {
   const [editSuspensionReason, setEditSuspensionReason] = useState("");
   const [editModules, setEditModules] = useState<string[]>([]);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [showRemoveAllModulesModal, setShowRemoveAllModulesModal] = useState(false);
+  const [removeAllReason, setRemoveAllReason] = useState("");
 
   // Sorting and Search state
   const [sortBy, setSortBy] = useState<"name" | "status" | "date" | "revenue">("date");
@@ -276,13 +278,21 @@ export default function AdminPage() {
     setEditStatus(org.status || "ACTIVE");
     setEditSuspensionReason(org.suspensionReason || "");
     setEditModules(org.enabledModules || []);
+    setRemoveAllReason("");
+    setShowRemoveAllModulesModal(false);
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (bypassConfirm = false) => {
     if (!editingOrg) return;
 
     if (editStatus === "SUSPENDED" && !editSuspensionReason.trim()) {
       alert("Please provide a suspension reason to explain why this client account is being suspended.");
+      return;
+    }
+
+    // If admin is removing ALL modules and has not confirmed via popup yet, show confirmation popup with optional reason
+    if (editModules.length === 0 && !bypassConfirm) {
+      setShowRemoveAllModulesModal(true);
       return;
     }
 
@@ -304,8 +314,27 @@ export default function AdminPage() {
         throw new Error(data.error || "Failed to update organization");
       }
 
+      // If all modules were removed and admin specified a reason, send it to the client organization as an official notification
+      if (editModules.length === 0 && removeAllReason.trim()) {
+        try {
+          await fetch(`${BACKEND_URL}/api/admin/organizations/${editingOrg.id}/notifications`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: "Notice: Module Access Removed",
+              message: `Your module access has been temporarily revoked or updated by the Administrator. Reason: ${removeAllReason.trim()}`,
+              priority: "high",
+            }),
+          });
+        } catch (notifErr) {
+          console.warn("Could not send revocation notification to client:", notifErr);
+        }
+      }
+
       showToast(`✓ Saved configuration for "${editName}"`);
       setEditingOrg(null);
+      setShowRemoveAllModulesModal(false);
+      setRemoveAllReason("");
       fetchOrganizations();
     } catch (err: any) {
       alert(err.message);
@@ -555,7 +584,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 p-4 sm:p-8 space-y-8 font-sans">
-      
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl shadow-xl animate-fadeIn font-bold text-xs">
@@ -665,7 +694,7 @@ export default function AdminPage() {
       </div>
 
       <div className="max-w-7xl mx-auto space-y-6">
-        
+
         {/* Metric & Lifecycle Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center justify-between shadow-xs">
@@ -945,25 +974,22 @@ export default function AdminPage() {
                 <span className="text-[10px] text-slate-400 font-bold uppercase mr-0.5">Filter:</span>
                 <button
                   onClick={() => setStatusFilter("UPCOMING_SOON")}
-                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
-                    statusFilter === "UPCOMING_SOON" ? "bg-orange-600 text-white" : "bg-orange-50 text-orange-700 hover:bg-orange-100"
-                  }`}
+                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${statusFilter === "UPCOMING_SOON" ? "bg-orange-600 text-white" : "bg-orange-50 text-orange-700 hover:bg-orange-100"
+                    }`}
                 >
                   Expiring Soon
                 </button>
                 <button
                   onClick={() => setStatusFilter("COMPLETED")}
-                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
-                    statusFilter === "COMPLETED" ? "bg-rose-600 text-white" : "bg-rose-50 text-rose-700 hover:bg-rose-100"
-                  }`}
+                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${statusFilter === "COMPLETED" ? "bg-rose-600 text-white" : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                    }`}
                 >
                   Completed
                 </button>
                 <button
                   onClick={() => setStatusFilter("ACTIVE")}
-                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
-                    statusFilter === "ACTIVE" ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                  }`}
+                  className={`flex-1 sm:flex-initial text-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${statusFilter === "ACTIVE" ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    }`}
                 >
                   Active
                 </button>
@@ -1220,41 +1246,39 @@ export default function AdminPage() {
               const count = tab.key === "ALL"
                 ? organizations.length
                 : tab.key === "UPCOMING_SOON"
-                ? organizations.filter(o => {
+                  ? organizations.filter(o => {
                     const subs = o.subscriptions || [];
                     const activeSub = subs[0];
                     if (!activeSub?.endDate) return false;
                     const diffDays = Math.ceil((new Date(activeSub.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                     return diffDays >= 0 && diffDays <= 14;
                   }).length
-                : tab.key === "COMPLETED"
-                ? organizations.filter(o => {
-                    const subs = o.subscriptions || [];
-                    const activeSub = subs[0];
-                    return activeSub?.endDate ? new Date(activeSub.endDate).getTime() < Date.now() : false;
-                  }).length
-                : tab.key === "RENEWED"
-                ? organizations.filter(o => {
-                    const subs = o.subscriptions || [];
-                    return subs.length > 1;
-                  }).length
-                : organizations.filter(o => o.status === tab.key).length;
+                  : tab.key === "COMPLETED"
+                    ? organizations.filter(o => {
+                      const subs = o.subscriptions || [];
+                      const activeSub = subs[0];
+                      return activeSub?.endDate ? new Date(activeSub.endDate).getTime() < Date.now() : false;
+                    }).length
+                    : tab.key === "RENEWED"
+                      ? organizations.filter(o => {
+                        const subs = o.subscriptions || [];
+                        return subs.length > 1;
+                      }).length
+                      : organizations.filter(o => o.status === tab.key).length;
 
               return (
                 <button
                   key={tab.key}
                   onClick={() => setStatusFilter(tab.key as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    statusFilter === tab.key
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${statusFilter === tab.key
                       ? `${tab.color} text-white shadow-xs`
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
+                    }`}
                 >
                   <span>{tab.label}</span>
                   {count > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                      statusFilter === tab.key ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${statusFilter === tab.key ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
+                      }`}>
                       {count}
                     </span>
                   )}
@@ -1296,11 +1320,10 @@ export default function AdminPage() {
                   {/* Top Bar of Org Card */}
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
                     <div className="flex items-center gap-4">
-                      <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-extrabold text-lg shadow-2xs ${
-                        org.status === "PENDING_APPROVAL"
+                      <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-extrabold text-lg shadow-2xs ${org.status === "PENDING_APPROVAL"
                           ? "bg-amber-100 border border-amber-300 text-amber-800"
                           : "bg-sky-50 border border-sky-200 text-sky-700"
-                      }`}>
+                        }`}>
                         {org.name.slice(0, 2).toUpperCase()}
                       </div>
 
@@ -1313,13 +1336,12 @@ export default function AdminPage() {
                               Rename Request: &quot;{org.pendingBusinessName}&quot;
                             </span>
                           )}
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
-                            org.status === "ACTIVE"
+                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${org.status === "ACTIVE"
                               ? "bg-emerald-50 border-emerald-200 text-emerald-700"
                               : org.status === "PENDING_APPROVAL"
-                              ? "bg-amber-50 border-amber-300 text-amber-800 font-extrabold"
-                              : "bg-rose-50 border-rose-200 text-rose-700"
-                          }`}>
+                                ? "bg-amber-50 border-amber-300 text-amber-800 font-extrabold"
+                                : "bg-rose-50 border-rose-200 text-rose-700"
+                            }`}>
                             {org.status === "PENDING_APPROVAL" ? "PENDING APPROVAL (6-12h)" : org.status}
                           </span>
                           {org.status === "SUSPENDED" && org.suspensionReason && (
@@ -1359,19 +1381,18 @@ export default function AdminPage() {
                         return (
                           <button
                             onClick={() => setViewingOrgMessages(org)}
-                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                              unreadCount > 0
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${unreadCount > 0
                                 ? "bg-amber-500 hover:bg-amber-600 border-amber-600 text-white shadow-md shadow-amber-500/30 animate-pulse"
                                 : clientMsgs.length > 0
-                                ? "bg-slate-50 hover:bg-amber-50 border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-800"
-                                : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-800"
-                            }`}
+                                  ? "bg-slate-50 hover:bg-amber-50 border-slate-200 hover:border-amber-300 text-slate-700 hover:text-amber-800"
+                                  : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-500 hover:text-slate-800"
+                              }`}
                             title={
                               unreadCount > 0
                                 ? `🔔 ${unreadCount} new unread client message(s)! Click to view.`
                                 : clientMsgs.length > 0
-                                ? `View ${clientMsgs.length} messages received from this client`
-                                : "View client messages inbox"
+                                  ? `View ${clientMsgs.length} messages received from this client`
+                                  : "View client messages inbox"
                             }
                           >
                             <Bell className={`h-3.5 w-3.5 ${unreadCount > 0 ? "text-white" : "text-amber-600"}`} />
@@ -1422,13 +1443,13 @@ export default function AdminPage() {
 
                   {/* Body Content */}
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    
+
                     {/* Column 1: Client Admin & Contact Details */}
                     <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                       <p className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
                         <Users className="h-3.5 w-3.5 text-sky-600" /> Account Contact Details
                       </p>
-                      
+
                       {adminUser ? (
                         <div className="space-y-2 text-xs">
                           <div className="flex justify-between items-center text-slate-600">
@@ -1623,7 +1644,7 @@ export default function AdminPage() {
             </div>
 
             <form onSubmit={handleCreateOrg} className="space-y-6 text-xs font-bold text-slate-700">
-              
+
               {/* Org Details */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1728,11 +1749,10 @@ export default function AdminPage() {
                           return (
                             <label
                               key={m.key}
-                              className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                                isChecked
+                              className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isChecked
                                   ? "bg-sky-50 border-sky-200 text-slate-900 shadow-2xs"
                                   : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-white"
-                              }`}
+                                }`}
                             >
                               <input
                                 type="checkbox"
@@ -1802,7 +1822,7 @@ export default function AdminPage() {
             </div>
 
             <div className="space-y-6 text-xs font-bold text-slate-700">
-              
+
               {/* Org Details & Status Toggle */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1899,11 +1919,10 @@ export default function AdminPage() {
                           return (
                             <label
                               key={m.key}
-                              className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                                isChecked
+                              className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isChecked
                                   ? "bg-sky-50 border-sky-200 text-slate-900 shadow-2xs"
                                   : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-white"
-                              }`}
+                                }`}
                             >
                               <input
                                 type="checkbox"
@@ -1941,13 +1960,69 @@ export default function AdminPage() {
                 </button>
                 <button
                   type="submit"
-                  onClick={handleSaveEdit}
+                  onClick={() => handleSaveEdit(false)}
                   disabled={savingEdit}
                   className="px-6 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow-md shadow-sky-500/20 transition-all cursor-pointer"
                 >
                   {savingEdit ? "Saving..." : "Save Configuration"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Warning & Reason Modal When Removing ALL Modules ── */}
+      {showRemoveAllModulesModal && editingOrg && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
+          <div className="relative w-full max-w-lg bg-white border border-amber-200 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-7 space-y-5">
+            <div className="flex items-start gap-3.5">
+              <div className="p-3 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  Remove All Module Access?
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                  You are unchecking all 12 modules for <strong className="text-slate-800">{editingOrg.name}</strong>. The client will see that no services are currently available and can send you an inquiry message.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <span>Reason for Removing All Modules</span>
+                <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <textarea
+                rows={3}
+                value={removeAllReason}
+                onChange={(e) => setRemoveAllReason(e.target.value)}
+                placeholder="E.g., Subscription payment pending, plan migration in progress, temporary system maintenance..."
+                className="w-full bg-white border border-slate-300 rounded-xl p-3 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/20 placeholder-slate-400 font-medium"
+              />
+              <p className="text-[11px] text-slate-400">
+                If provided, this reason will be sent as an official notice to the client so they can see why their modules are paused.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRemoveAllModulesModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
+              >
+                Back to Edit
+              </button>
+              <button
+                type="button"
+                disabled={savingEdit}
+                onClick={() => handleSaveEdit(true)}
+                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20 cursor-pointer transition-all flex items-center gap-1.5"
+              >
+                {savingEdit ? "Saving..." : "Confirm & Save (0 Modules)"}
+              </button>
             </div>
           </div>
         </div>
@@ -2083,13 +2158,12 @@ export default function AdminPage() {
                     <h3 className="text-lg font-black text-slate-900 tracking-tight">
                       {viewingClient.name}
                     </h3>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
-                      viewingClient.status === "ACTIVE"
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${viewingClient.status === "ACTIVE"
                         ? "bg-emerald-50 border-emerald-200 text-emerald-700"
                         : viewingClient.status === "PENDING_APPROVAL"
-                        ? "bg-amber-50 border-amber-300 text-amber-800"
-                        : "bg-rose-50 border-rose-200 text-rose-700"
-                    }`}>
+                          ? "bg-amber-50 border-amber-300 text-amber-800"
+                          : "bg-rose-50 border-rose-200 text-rose-700"
+                      }`}>
                       {viewingClient.status}
                     </span>
                   </div>
@@ -2218,18 +2292,16 @@ export default function AdminPage() {
                           return (
                             <div
                               key={sub.id || sIdx}
-                              className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
-                                isCurrent
+                              className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${isCurrent
                                   ? "bg-white border-emerald-200 shadow-2xs"
                                   : "bg-purple-50/50 border-purple-200"
-                              }`}
+                                }`}
                             >
                               <div>
                                 <div className="flex items-center gap-2">
                                   <span className="font-black text-slate-900 text-xs">{sub.planName}</span>
-                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${
-                                    isCurrent ? "bg-emerald-100 text-emerald-800" : "bg-purple-100 text-purple-800"
-                                  }`}>
+                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase ${isCurrent ? "bg-emerald-100 text-emerald-800" : "bg-purple-100 text-purple-800"
+                                    }`}>
                                     {isCurrent ? "Active Plan" : "Queued Renewal"}
                                   </span>
                                 </div>
@@ -2436,11 +2508,10 @@ export default function AdminPage() {
                     return (
                       <div
                         key={item.id}
-                        className={`p-4 rounded-2xl border transition-all space-y-2.5 ${
-                          item.isRead
+                        className={`p-4 rounded-2xl border transition-all space-y-2.5 ${item.isRead
                             ? "bg-white border-slate-200/90 shadow-2xs"
                             : "bg-amber-50/40 border-amber-200/90 shadow-2xs"
-                        }`}
+                          }`}
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
@@ -2451,13 +2522,12 @@ export default function AdminPage() {
                             <span className="font-mono text-[10px] text-slate-400">
                               (ID: {item.organizationId.slice(0, 8)}...)
                             </span>
-                            <span className={`px-2 py-0.2 rounded text-[9px] font-black uppercase ${
-                              item.priority === "urgent"
+                            <span className={`px-2 py-0.2 rounded text-[9px] font-black uppercase ${item.priority === "urgent"
                                 ? "bg-rose-100 text-rose-800"
                                 : item.priority === "high"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-sky-100 text-sky-800"
-                            }`}>
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-sky-100 text-sky-800"
+                              }`}>
                               {item.priority}
                             </span>
                           </div>
@@ -2646,8 +2716,8 @@ export default function AdminPage() {
                     {bcastTargetStatus === "ALL"
                       ? `${organizations.length} organizations`
                       : bcastTargetStatus === "ACTIVE"
-                      ? `${organizations.filter((o) => o.status === "ACTIVE").length} active organizations`
-                      : `${organizations.filter((o) => o.status === "SUSPENDED").length} suspended organizations`}
+                        ? `${organizations.filter((o) => o.status === "ACTIVE").length} active organizations`
+                        : `${organizations.filter((o) => o.status === "SUSPENDED").length} suspended organizations`}
                   </strong>
                   . Clients will see a notification badge on their profile and dashboard.
                 </span>
@@ -2759,11 +2829,10 @@ export default function AdminPage() {
                       className={`flex flex-col ${isClient ? "items-start" : "items-end"}`}
                     >
                       <div
-                        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 shadow-2xs space-y-1 relative ${
-                          isClient
+                        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 shadow-2xs space-y-1 relative ${isClient
                             ? "bg-white border border-slate-200/90 text-slate-900 rounded-tl-xs"
                             : "bg-emerald-600 text-white rounded-tr-xs"
-                        }`}
+                          }`}
                       >
                         {/* Header tag */}
                         <div className="flex items-center justify-between gap-3 text-[10px] pb-1 border-b border-black/5">
@@ -2816,22 +2885,22 @@ export default function AdminPage() {
                                 prev.map((o) =>
                                   o.id === viewingOrgMessages.id
                                     ? {
-                                        ...o,
-                                        notifications: (o.notifications || []).map((n) =>
-                                          n.id === item.id ? { ...n, isRead: true } : n
-                                        ),
-                                      }
+                                      ...o,
+                                      notifications: (o.notifications || []).map((n) =>
+                                        n.id === item.id ? { ...n, isRead: true } : n
+                                      ),
+                                    }
                                     : o
                                 )
                               );
                               setViewingOrgMessages((prev) =>
                                 prev
                                   ? {
-                                      ...prev,
-                                      notifications: (prev.notifications || []).map((n) =>
-                                        n.id === item.id ? { ...n, isRead: true } : n
-                                      ),
-                                    }
+                                    ...prev,
+                                    notifications: (prev.notifications || []).map((n) =>
+                                      n.id === item.id ? { ...n, isRead: true } : n
+                                    ),
+                                  }
                                   : null
                               );
                             } catch (e) {
@@ -2888,9 +2957,9 @@ export default function AdminPage() {
                   setViewingOrgMessages((prev) =>
                     prev
                       ? {
-                          ...prev,
-                          notifications: [...(prev.notifications || []), newMsgItem],
-                        }
+                        ...prev,
+                        notifications: [...(prev.notifications || []), newMsgItem],
+                      }
                       : null
                   );
 
@@ -2898,9 +2967,9 @@ export default function AdminPage() {
                     prev.map((o) =>
                       o.id === viewingOrgMessages.id
                         ? {
-                            ...o,
-                            notifications: [...(o.notifications || []), newMsgItem],
-                          }
+                          ...o,
+                          notifications: [...(o.notifications || []), newMsgItem],
+                        }
                         : o
                     )
                   );

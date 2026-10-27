@@ -33,8 +33,13 @@ import {
   Calendar,
   Inbox,
   Clock,
-  Tag
+  Tag,
+  TrendingUp,
+  Percent,
+  HelpCircle,
+  Award
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import Footer from "@/components/Footer";
 import HeroShowcase from "@/components/home/HeroShowcase";
 import { Button } from "@/components/ui/button";
@@ -295,6 +300,8 @@ export default function PricingPage() {
   const [billingMode, setBillingMode] = useState<"upfront" | "emi">("upfront");
   // Sub-EMI Option State: "autopay" (Company Direct Monthly AutoPay) | "bank_emi" (Bank / NBFC Instant Loan EMI)
   const [selectedEmiType, setSelectedEmiType] = useState<"autopay" | "bank_emi">("autopay");
+  // Category filter for Individual Modules breakdown
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Checkout Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1052,91 +1059,255 @@ export default function PricingPage() {
         )}
 
         {/* ── Individual Module Pricing Breakdown (12 Modules Separately = ₹72,000 / Year) ── */}
-        <section className="w-full max-w-5xl mx-auto mt-16 pt-10 border-t border-slate-200 space-y-6">
-          <div className="text-center max-w-2xl mx-auto space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
-              <Tag className="w-3.5 h-3.5 text-brand-blue" />
-              <span>STANDALONE VALUATION BREAKDOWN</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+        <section className="w-full max-w-6xl mx-auto mt-20 pt-12 border-t border-slate-200/80 space-y-8">
+          {/* Section Header with Glowing Pill & Typography */}
+          <div className="text-center max-w-3xl mx-auto space-y-3 px-4">
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-emerald-500/10 border border-brand-blue/20 text-brand-blue text-xs font-black shadow-xs tracking-wide uppercase"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-brand-blue animate-pulse" />
+              <span>Full Standalone Valuation Breakdown</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-brand-blue text-white text-[10px]">12 Core Suites</span>
+            </motion.div>
+
+            <motion.h2 
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+              className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tight"
+            >
               Individual Charges if Purchased Separately
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              If purchased as separate point solutions across the industry, each module carries the following 12-month standalone price (Total: ₹72,000 / Year).
-            </p>
+            </motion.h2>
+
+            <motion.p 
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.15 }}
+              className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed"
+            >
+              If purchased individually as standalone point-solutions across SaaS vendors, you’d spend{" "}
+              <strong className="text-slate-900 font-extrabold underline decoration-rose-400 decoration-2">₹72,000 / year</strong>. 
+              Here is the transparent valuation for each module:
+            </motion.p>
+
+            {/* Quick Live Value Hero Pill Bar */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.2 }}
+              className="pt-2 flex flex-wrap items-center justify-center gap-3 text-xs"
+            >
+              <div className="flex items-center gap-2 bg-rose-50 text-rose-800 border border-rose-200/80 px-3.5 py-1.5 rounded-xl font-bold shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                <span>Combined Market Value:</span>
+                <span className="line-through font-extrabold text-rose-950">₹72,000/yr</span>
+              </div>
+              <div className="flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200/80 px-3.5 py-1.5 rounded-xl font-bold shadow-2xs">
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Our All-In-One Bundle:</span>
+                <span className="font-extrabold text-emerald-700 text-sm">₹14,999/yr</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-gradient-to-r from-brand-blue to-purple-600 text-white px-3.5 py-1.5 rounded-xl font-extrabold shadow-sm">
+                <Percent className="w-3.5 h-3.5" />
+                <span>Direct 79% Savings (₹57,001 Kept In Your Pocket)</span>
+              </div>
+            </motion.div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {INDIVIDUAL_MODULES.map((mod, idx) => {
-              const ModIcon = mod.icon;
+          {/* Interactive Category Filter Pills */}
+          <div className="flex items-center justify-center flex-wrap gap-2 px-2 pt-2">
+            {[
+              { id: "all", label: "All 12 Modules", count: 12 },
+              { id: "messaging", label: "WhatsApp & Social", count: 3 },
+              { id: "ads", label: "Ads & Attribution", count: 2 },
+              { id: "ai", label: "AI & Chatbots", count: 3 },
+              { id: "operations", label: "Email & Calendar CRM", count: 4 }
+            ].map((tab) => {
+              const active = (tab.id === "all" && !selectedCategory) || selectedCategory === tab.id;
               return (
-                <div
-                  key={mod.id}
-                  className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs hover:border-slate-300 hover:shadow-md transition-all flex flex-col justify-between space-y-3"
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(tab.id === "all" ? null : tab.id)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    active
+                      ? "bg-slate-900 text-white shadow-md shadow-slate-900/20 scale-102"
+                      : "bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50 hover:text-slate-900"
+                  }`}
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`p-2 rounded-xl bg-slate-100 text-slate-700`}>
-                          <ModIcon className="w-4 h-4" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-400 uppercase">
-                          Module {idx + 1}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-                        {mod.tag}
-                      </span>
-                    </div>
-
-                    <h3 className="text-sm font-black text-slate-900 leading-snug">
-                      {mod.name}
-                    </h3>
-                    <p className="text-xs text-slate-500 leading-relaxed min-h-[34px]">
-                      {mod.desc}
-                    </p>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 space-y-1.5">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-slate-500 font-medium">Standalone 12-Month Rate:</span>
-                      <span className="text-base font-black text-slate-900">
-                        ₹{formatINR(mod.individualYearlyPrice)} / yr
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Equiv. Monthly:</span>
-                      <span className="font-semibold text-slate-600">~₹{formatINR(mod.individualMonthlyRate)}/mo</span>
-                    </div>
-                    <div className="text-[10px] text-slate-400 italic pt-0.5">
-                      Market Comparison: {mod.marketComparison}
-                    </div>
-                  </div>
-                </div>
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
               );
             })}
           </div>
 
-          {/* Cumulative Summary Box */}
-          <div className="p-6 rounded-2xl bg-slate-900 text-white flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
-            <div className="space-y-1 text-center md:text-left">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Total Individual Value Across All 12 Modules
-              </span>
-              <div className="text-2xl sm:text-3xl font-black text-white flex items-center gap-3 justify-center md:justify-start">
-                <span className="line-through text-slate-500">₹72,000 / year</span>
-                <span className="text-emerald-400 text-base sm:text-lg font-bold">→ Only ₹14,999 in Official 2026 Offer</span>
+          {/* Cards Grid with Framer Motion Stagger and Hover Depth */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 px-2">
+            {INDIVIDUAL_MODULES
+              .filter((mod) => {
+                if (!selectedCategory || selectedCategory === "all") return true;
+                if (selectedCategory === "messaging") return ["whatsapp", "instagram", "youtube"].includes(mod.id);
+                if (selectedCategory === "ads") return ["google_ads", "meta_ads"].includes(mod.id);
+                if (selectedCategory === "ai") return ["ai_agent", "chatbot", "reviews"].includes(mod.id);
+                if (selectedCategory === "operations") return ["inbox", "gmail", "calendar", "linkedin"].includes(mod.id);
+                return true;
+              })
+              .map((mod, idx) => {
+                const ModIcon = mod.icon;
+                return (
+                  <motion.div
+                    key={mod.id}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.35, delay: idx * 0.04 }}
+                    whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                    className="group relative p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs hover:border-brand-blue/40 hover:shadow-xl hover:shadow-brand-blue/5 transition-all flex flex-col justify-between space-y-4 overflow-hidden"
+                  >
+                    {/* Top Accent Gradient Line on Hover */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-blue via-purple-500 to-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-700 group-hover:scale-110 group-hover:bg-brand-blue/10 group-hover:text-brand-blue group-hover:border-brand-blue/20 transition-all duration-300 shadow-2xs`}>
+                            <ModIcon className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase">
+                              Module #{idx + 1}
+                            </span>
+                            <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500">
+                              <span>Full License</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg bg-slate-100/90 text-slate-700 border border-slate-200/80 tracking-wide">
+                          {mod.tag}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <h3 className="text-base font-black text-slate-900 group-hover:text-brand-blue transition-colors leading-snug">
+                          {mod.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 leading-relaxed min-h-[38px]">
+                          {mod.desc}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Pricing Box & Market Benchmark */}
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <div className="p-2.5 rounded-xl bg-slate-50/70 border border-slate-100/90 space-y-1 group-hover:bg-blue-50/40 group-hover:border-blue-100/80 transition-colors">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-[11px] text-slate-500 font-semibold">Standalone 1-Yr Rate:</span>
+                          <span className="text-base font-black text-slate-900">
+                            ₹{formatINR(mod.individualYearlyPrice)}
+                            <span className="text-xs font-semibold text-slate-400"> / yr</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>Monthly Run Rate:</span>
+                          <span className="font-bold text-slate-600">~₹{formatINR(mod.individualMonthlyRate)} / mo</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                        <span className="flex items-center gap-1 text-slate-400 text-[10px]">
+                          <Award className="w-3 h-3 text-amber-500" />
+                          Industry Standard:
+                        </span>
+                        <span className="font-semibold text-slate-700 truncate max-w-[170px]" title={mod.marketComparison}>
+                          {mod.marketComparison}
+                        </span>
+                      </div>
+
+                      <div className="pt-1 flex items-center justify-between text-[11px]">
+                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Included in ₹14,999 Offer
+                        </span>
+                        <span className="text-[10px] font-black text-slate-400 group-hover:text-brand-blue transition-colors">
+                          Unlocked ✓
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+          </div>
+
+          {/* Cumulative Comparison & Value Callout Box with Animated Glow & Action */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="relative p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-brand-blue-deep text-white shadow-2xl overflow-hidden border border-slate-800"
+          >
+            {/* Ambient background glows */}
+            <div className="absolute -top-24 -right-24 w-72 h-72 bg-brand-blue/30 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-6">
+              <div className="space-y-3 text-center lg:text-left max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-bold text-sky-200">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>100% Comprehensive All-In-One Enterprise Pass</span>
+                </div>
+                
+                <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
+                  Why Pay ₹72,000 to Multiple Tools When You Can Get Everything for ₹14,999?
+                </h3>
+                
+                <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
+                  No separate subscriptions, no Zapier bridge fees, no hidden per-seat penalty. Get all 12 modules, unlimited multi-agent seats, Meta Cloud API, AI Chatbots, Ads Automation, and bring your own LLM API key.
+                </p>
+
+                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 pt-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">Total Valuation:</span>
+                    <span className="line-through text-rose-300 font-extrabold text-base">₹72,000 / yr</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-emerald-500/20 border border-emerald-400/30 px-3 py-1 rounded-lg">
+                    <span className="text-emerald-300 font-bold">Your Price:</span>
+                    <span className="text-emerald-400 font-black text-lg">₹14,999 / year</span>
+                  </div>
+                  <div className="text-amber-300 font-bold">
+                    🔥 You Save ₹57,001 (79% OFF)
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleOpenCheckoutForPlan("annual")}
+                  className="group py-4 px-8 rounded-2xl bg-gradient-to-r from-brand-blue to-blue-500 hover:from-blue-500 hover:to-brand-blue text-white font-black text-sm sm:text-base shadow-xl shadow-brand-blue/40 hover:shadow-brand-blue/60 hover:scale-103 active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2.5"
+                >
+                  <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                  <span>Get All 12 Modules at ₹14,999</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+                <div className="text-center text-[11px] text-slate-400 font-medium">
+                  Instant activation • 12-month complete access • No auto-debit trap
+                </div>
               </div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => handleOpenCheckoutForPlan("annual")}
-              className="py-3 px-6 rounded-xl bg-brand-blue hover:bg-brand-blue-deep text-white font-black text-xs sm:text-sm shadow-md shadow-brand-blue/30 cursor-pointer shrink-0"
-            >
-              Get All 12 Modules at ₹14,999 →
-            </button>
-          </div>
+          </motion.div>
         </section>
 
         {/* Bring Any LLM Spotlight Banner */}
