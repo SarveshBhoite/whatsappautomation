@@ -463,31 +463,60 @@ ${(history || []).map((h: any) => `${h.role === 'user' ? 'Customer' : 'Agent (' 
 
 // ─── 4. AI CAPTURED LEADS DESK ───────────────────────────────────────────────
 
-// GET: List all AI Captured Leads
+// GET: List all AI Captured Leads with optional category filter & list of distinct categories
 router.get("/leads", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    const { category, search } = req.query;
 
-    const leads = await prisma.aiCapturedLead.findMany({
-      where: { organizationId },
-      orderBy: { createdAt: "desc" },
-    });
+    const whereClause: any = { organizationId };
 
-    return res.status(200).json(leads);
+    if (category && typeof category === "string" && category !== "ALL") {
+      whereClause.category = category;
+    }
+
+    if (search && typeof search === "string" && search.trim() !== "") {
+      whereClause.OR = [
+        { contactName: { contains: search, mode: "insensitive" } },
+        { contactPhone: { contains: search, mode: "insensitive" } },
+        { contactEmail: { contains: search, mode: "insensitive" } },
+        { topicDiscussed: { contains: search, mode: "insensitive" } },
+        { intention: { contains: search, mode: "insensitive" } },
+        { notes: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [leads, distinctCategories] = await Promise.all([
+      (prisma.aiCapturedLead as any).findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+      }),
+      (prisma.aiCapturedLead as any).findMany({
+        where: { organizationId },
+        select: { category: true },
+        distinct: ["category"],
+      }),
+    ]);
+
+    const categories = distinctCategories
+      .map((c: any) => c.category)
+      .filter((c: any) => Boolean(c));
+
+    return res.status(200).json({ leads, categories });
   } catch (error: any) {
     console.error("Error fetching captured leads:", error);
     return res.status(500).json({ error: "Failed to fetch captured leads", details: error.message });
   }
 });
 
-// PATCH: Update lead status ("NEW" | "CONTACTED" | "CLOSED"), notes, and remarks
+// PATCH: Update lead status ("NEW" | "CONTACTED" | "CLOSED"), category, intention, notes, and remarks
 router.patch("/leads/:id", async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
     const organizationId = getOrgId(req);
-    const { status, notes, remark } = req.body;
+    const { status, notes, remark, category, intention } = req.body;
 
-    const existingLead = await prisma.aiCapturedLead.findFirst({
+    const existingLead = await (prisma.aiCapturedLead as any).findFirst({
       where: { id, organizationId }
     });
 
@@ -499,6 +528,8 @@ router.patch("/leads/:id", async (req: Request, res: Response) => {
     if (status !== undefined) updateData.status = status;
     if (notes !== undefined) updateData.notes = notes;
     if (remark !== undefined) updateData.remark = remark;
+    if (category !== undefined) updateData.category = category;
+    if (intention !== undefined) updateData.intention = intention;
 
     const lead = await (prisma.aiCapturedLead as any).update({
       where: { id },

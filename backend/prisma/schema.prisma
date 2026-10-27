@@ -1070,6 +1070,8 @@ model AiCapturedLead {
   customerName   String?
   email          String?
   topicDiscussed String?
+  category       String?      @default("General Inquiry")
+  intention      String?
   notes          String?
   remark         String?
   status         String       @default("NEW")

@@ -351,8 +351,10 @@ Return ONLY valid JSON. replyText must be 1-3 plain sentences — no bullets, no
     "name": "extracted_name_or_null",
     "email": "extracted_email_or_null",
     "phone": "extracted_phone_or_null",
-    "topic": "topic_discussed_or_null",
-    "notes": "additional_notes_or_null"
+    "topic": "Concise specific subject of inquiry (e.g., 'E-Commerce Website Development', 'React Developer Job Application', 'Restaurant Table Booking', 'Real Estate Villa Pricing')",
+    "category": "One of: 'Services / Projects', 'Job / Hiring', 'Pricing & Quote', 'Support & Questions', 'Partnership', or specific business category",
+    "intention": "One of: 'BUY_SERVICE', 'JOB_APPLICATION', 'ASK_PRICING', 'SEEKING_SUPPORT', 'GENERAL_INQUIRY'",
+    "notes": "Comprehensive structured summary of what the customer specifically wants, requirements mentioned, urgency, budget, questions asked, etc."
   }
 }`;
 
@@ -729,6 +731,29 @@ if (isLeadExpressingInterest) {
   // Check if conversation history is a job application
   const isJobCandidateContext = recentMessages.some(m => /\b(job|career|resume|cv|hiring|vacancy|interview|apply|applying)\b/i.test(m.content));
 
+  // Determine category and intention dynamically
+  let category = leadData.category || "";
+  let intention = leadData.intention || "";
+
+  if (!category || category === "category_or_null") {
+    if (isJobCandidateContext || /\b(job|career|resume|cv|hiring|vacancy|interview|apply|applying)\b/i.test(customerQuery)) {
+      category = "Job / Hiring";
+      intention = "JOB_APPLICATION";
+    } else if (/\b(price|pricing|cost|quote|discount|package|rate|charges|fees)\b/i.test(customerQuery)) {
+      category = "Pricing & Quote";
+      intention = "ASK_PRICING";
+    } else if (clickedAdHeadline || /\b(website|web app|web dev|web design|landing page|mobile app|android app|ios app|seo|google ranking|digital marketing|meta ads|social media|smm|service|project)\b/i.test(customerQuery)) {
+      category = "Services / Projects";
+      intention = "BUY_SERVICE";
+    } else if (/\b(problem|error|bug|issue|help|not working|support)\b/i.test(customerQuery)) {
+      category = "Support & Questions";
+      intention = "SEEKING_SUPPORT";
+    } else {
+      category = "General Inquiry";
+      intention = "GENERAL_INQUIRY";
+    }
+  }
+
   // Determine precise topic
   let topicSummary = leadData.topic || "";
   if (clickedAdHeadline) {
@@ -748,7 +773,7 @@ if (isLeadExpressingInterest) {
   const adAttributionTag = clickedAdHeadline ? `[Meta Ad: "${clickedAdHeadline}"] ` : "";
   const notesText = (leadData.notes && leadData.notes !== "additional_notes_or_null")
     ? `${adAttributionTag}${leadData.notes}`
-    : `${adAttributionTag}Discussed ${topicSummary} via ${conversation.platform === 'instagram' ? 'Instagram' : conversation.platform || 'WhatsApp'}`;
+    : `${adAttributionTag}Customer inquired about "${topicSummary}" via ${conversation.platform === 'instagram' ? 'Instagram' : conversation.platform || 'WhatsApp'}. Message: "${customerQuery.slice(0, 300)}"`;
 
   const leadRemark = clickedAdHeadline ? `Meta Ad: ${clickedAdHeadline}` : undefined;
   const leadPlatformFallback = isInstagram ? "Instagram Lead" : "WhatsApp Lead";
@@ -767,12 +792,14 @@ if (isLeadExpressingInterest) {
           customerName: leadName !== leadPlatformFallback ? leadName : existingLead.customerName,
           email: leadEmail || existingLead.email,
           topicDiscussed: topicSummary.slice(0, 255),
+          category: category || existingLead.category || "General Inquiry",
+          intention: intention || existingLead.intention,
           notes: notesText,
           remark: leadRemark || existingLead.remark,
           updatedAt: new Date(),
         }
       });
-      console.log(`[AI AGENT ENGINE] ✅ Lead updated for phone: ${customerPhone} -> ${topicSummary} (Ad: ${clickedAdHeadline || 'Direct'})`);
+      console.log(`[AI AGENT ENGINE] ✅ Lead updated for phone: ${customerPhone} -> [${category}] ${topicSummary} (Ad: ${clickedAdHeadline || 'Direct'})`);
     } else {
       await prisma.aiCapturedLead.create({
         data: {
@@ -781,12 +808,14 @@ if (isLeadExpressingInterest) {
           customerName: leadName,
           email: leadEmail,
           topicDiscussed: topicSummary.slice(0, 255),
+          category: category || "General Inquiry",
+          intention: intention || "GENERAL_INQUIRY",
           notes: notesText,
           remark: leadRemark,
           status: "NEW",
         }
       });
-      console.log(`[AI AGENT ENGINE] ✅ New Lead captured for phone: ${customerPhone} -> ${topicSummary} (Ad: ${clickedAdHeadline || 'Direct'})`);
+      console.log(`[AI AGENT ENGINE] ✅ New Lead captured for phone: ${customerPhone} -> [${category}] ${topicSummary} (Ad: ${clickedAdHeadline || 'Direct'})`);
     }
   } catch (leadErr: any) {
     console.error(`[AI AGENT ENGINE] Error saving captured lead:`, leadErr.message);

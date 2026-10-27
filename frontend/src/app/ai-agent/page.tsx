@@ -24,12 +24,32 @@ import {
   Layers,
   Search,
   Menu,
-  X
+  X,
+  Filter,
+  Eye,
+  Tag,
+  Compass,
+  Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const getBackendUrl = (): string => {
+  if (process.env.NEXT_PUBLIC_BACKEND_URL) {
+    return process.env.NEXT_PUBLIC_BACKEND_URL;
+  }
+  // In browser, if on LAN IP or remote hostname, use same origin or port 5000 on same host
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
+      // Use relative proxy / same host port 5000
+      return `${window.location.protocol}//${hostname}:5000`;
+    }
+  }
+  return "http://localhost:5000";
+};
+
+const BACKEND_URL = getBackendUrl();
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
@@ -74,7 +94,10 @@ interface CapturedLead {
   id: string;
   customerPhone: string;
   customerName?: string;
+  contactEmail?: string;
   topicDiscussed?: string;
+  category?: string;
+  intention?: string;
   notes?: string;
   remark?: string;
   status: "NEW" | "CONTACTED" | "CLOSED";
@@ -137,6 +160,10 @@ export default function AiAgentPage() {
 
   // Leads Desk State
   const [leads, setLeads] = useState<CapturedLead[]>([]);
+  const [leadCategories, setLeadCategories] = useState<string[]>([]);
+  const [selectedLeadCategory, setSelectedLeadCategory] = useState<string>("ALL");
+  const [leadSearchText, setLeadSearchText] = useState<string>("");
+  const [viewingLead, setViewingLead] = useState<CapturedLead | null>(null);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [editingRemarks, setEditingRemarks] = useState<{ [leadId: string]: string }>({});
@@ -171,10 +198,18 @@ export default function AiAgentPage() {
   const fetchConfig = async () => {
     setLoadingConfig(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/ai-agent/config`, {
+      let res = await fetch(`${BACKEND_URL}/api/ai-agent/config`, {
         headers: { "x-organization-id": getOrgId() }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      // If direct backend failed, try Next.js proxy route /api/ai-agent/config
+      if (!res || !res.ok) {
+        res = await fetch(`/api/ai-agent/config`, {
+          headers: { "x-organization-id": getOrgId() }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         if (data.config) {
           setConfig(data.config);
@@ -183,7 +218,7 @@ export default function AiAgentPage() {
         }
       }
     } catch (err) {
-      console.error("Failed to fetch AI agent config:", err);
+      console.warn("Could not fetch AI agent config:", err);
     } finally {
       setLoadingConfig(false);
     }
@@ -192,10 +227,17 @@ export default function AiAgentPage() {
   const fetchKnowledge = async () => {
     setLoadingKnowledge(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/ai-agent/knowledge`, {
+      let res = await fetch(`${BACKEND_URL}/api/ai-agent/knowledge`, {
         headers: { "x-organization-id": getOrgId() }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`/api/ai-agent/knowledge`, {
+          headers: { "x-organization-id": getOrgId() }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           setKnowledgeItems(data);
@@ -204,7 +246,7 @@ export default function AiAgentPage() {
         }
       }
     } catch (err) {
-      console.error("Failed to fetch knowledge items:", err);
+      console.warn("Could not fetch knowledge items:", err);
     } finally {
       setLoadingKnowledge(false);
     }
@@ -213,19 +255,31 @@ export default function AiAgentPage() {
   const fetchLeads = async () => {
     setLoadingLeads(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/ai-agent/leads`, {
+      let res = await fetch(`${BACKEND_URL}/api/ai-agent/leads`, {
         headers: { "x-organization-id": getOrgId() }
-      });
-      if (res.ok) {
+      }).catch(() => null);
+
+      if (!res || !res.ok) {
+        res = await fetch(`/api/ai-agent/leads`, {
+          headers: { "x-organization-id": getOrgId() }
+        }).catch(() => null);
+      }
+
+      if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           setLeads(data);
+          const cats = Array.from(new Set(data.map((l: any) => l.category).filter(Boolean)));
+          setLeadCategories(cats as string[]);
         } else if (data && Array.isArray(data.leads)) {
           setLeads(data.leads);
+          if (Array.isArray(data.categories)) {
+            setLeadCategories(data.categories);
+          }
         }
       }
     } catch (err) {
-      console.error("Failed to fetch AI captured leads:", err);
+      console.warn("Could not fetch AI captured leads:", err);
     } finally {
       setLoadingLeads(false);
     }
@@ -460,6 +514,34 @@ export default function AiAgentPage() {
       item.keywords.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.content.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCat && matchesSearch;
+  });
+
+  // Dynamic Lead Categories (combines known distinct categories + categories on current leads)
+  const allLeadCategories = Array.from(
+    new Set([
+      ...leadCategories,
+      ...leads.map((l) => l.category).filter(Boolean) as string[],
+    ])
+  );
+
+  // Filtered Leads Desk
+  const filteredLeads = leads.filter(lead => {
+    const matchesCategory =
+      selectedLeadCategory === "ALL" ||
+      (lead.category || "General Inquiry").toLowerCase() === selectedLeadCategory.toLowerCase();
+
+    const q = leadSearchText.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      (lead.customerName || "").toLowerCase().includes(q) ||
+      (lead.customerPhone || "").toLowerCase().includes(q) ||
+      (lead.contactEmail || "").toLowerCase().includes(q) ||
+      (lead.topicDiscussed || "").toLowerCase().includes(q) ||
+      (lead.intention || "").toLowerCase().includes(q) ||
+      (lead.notes || "").toLowerCase().includes(q) ||
+      (lead.category || "").toLowerCase().includes(q);
+
+    return matchesCategory && matchesSearch;
   });
 
   return (
@@ -1164,19 +1246,99 @@ export default function AiAgentPage() {
       {/* TAB 4: CAPTURED LEADS DESK */}
       {activeTab === "leads" && (
         <div className="p-4 sm:p-6 space-y-4 max-w-7xl mx-auto w-full">
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 flex items-center justify-between shadow-xs">
+          {/* Header Card */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
             <div>
-              <h2 className="text-sm font-extrabold text-slate-900">AI Generated Sales Leads</h2>
-              <p className="text-xs text-slate-500">Leads captured by AI Agent during customer conversations</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-extrabold text-slate-900">AI Generated Sales Leads</h2>
+                <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-purple-100 text-purple-700">
+                  {filteredLeads.length} {filteredLeads.length === 1 ? "Lead" : "Leads"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Automatically categorized customer inquiries captured by your AI Agent across WhatsApp and connected channels
+              </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={fetchLeads}
-            >
-              <RefreshCw className="h-4 w-4 mr-1" />
-              <span>Refresh</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchLeads}
+                disabled={loadingLeads}
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${loadingLeads ? "animate-spin" : ""}`} />
+                <span>Refresh</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Dynamic Category Filter Bar & Search */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-3.5 space-y-3 shadow-xs">
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+              {/* Category Pills (Dynamically created from organization's leads & AI classifications) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+                  <Filter className="h-3 w-3" /> Filter:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLeadCategory("ALL")}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                    selectedLeadCategory === "ALL"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  All ({leads.length})
+                </button>
+
+                {allLeadCategories.map((cat) => {
+                  const count = leads.filter(
+                    (l) => (l.category || "General Inquiry").toLowerCase() === cat.toLowerCase()
+                  ).length;
+                  const isActive = selectedLeadCategory.toLowerCase() === cat.toLowerCase();
+
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedLeadCategory(cat)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                        isActive
+                          ? "bg-purple-600 text-white shadow-xs"
+                          : "bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-100"
+                      }`}
+                    >
+                      <Tag className="h-3 w-3 opacity-70" />
+                      <span>{cat}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isActive ? "bg-white/20 text-white" : "bg-purple-200/70 text-purple-900"}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative min-w-[200px] sm:w-64 shrink-0">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={leadSearchText}
+                  onChange={(e) => setLeadSearchText(e.target.value)}
+                  placeholder="Search customer, topic, notes..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-purple-500 shadow-2xs"
+                />
+                {leadSearchText && (
+                  <button
+                    onClick={() => setLeadSearchText("")}
+                    className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {loadingLeads ? (
@@ -1191,92 +1353,262 @@ export default function AiAgentPage() {
                 </div>
               ))}
             </div>
-          ) : leads.length === 0 ? (
+          ) : filteredLeads.length === 0 ? (
             <div className="py-12 text-center bg-white border border-slate-200 rounded-3xl p-8 shadow-xs">
               <UserCheck className="h-10 w-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm font-bold text-slate-700">No leads captured yet.</p>
-              <p className="text-xs text-slate-400 mt-1">Your AI Agent will automatically extract customer contact info when users ask for callbacks!</p>
+              <p className="text-sm font-bold text-slate-700">
+                {leads.length === 0 ? "No leads captured yet." : "No leads match your category or search filter."}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {leads.length === 0
+                  ? "Your AI Agent will automatically extract customer contact info, user intentions, and specific requirements when users message!"
+                  : "Try switching to 'All' category or clearing your search term."}
+              </p>
             </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[840px] lg:min-w-full table-fixed text-left text-xs text-slate-700">
+                <table className="w-full min-w-[900px] table-auto text-left text-xs text-slate-700">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold text-[11px]">
                     <tr>
-                      <th className="py-3 px-3.5 w-[14%] min-w-[110px]">Customer</th>
-                      <th className="py-3 px-3 w-[14%] min-w-[110px]">Contact</th>
-                      <th className="py-3 px-3 w-[14%] min-w-[110px]">Topic</th>
-                      <th className="py-3 px-3 w-[14%] min-w-[110px]">Captured Notes</th>
-                      <th className="py-3 px-3 w-[18%] min-w-[140px]">Remarks</th>
-                      <th className="py-3 px-2 w-[13%] min-w-[110px] text-center">Status</th>
-                      <th className="py-3 px-3 w-[13%] min-w-[110px] text-center">Date</th>
+                      <th className="py-3 px-3.5 w-44">Customer &amp; Contact</th>
+                      <th className="py-3 px-3 w-40">Category</th>
+                      <th className="py-3 px-3 w-52">Topic &amp; Intention</th>
+                      <th className="py-3 px-3 min-w-[220px]">Captured Notes</th>
+                      <th className="py-3 px-3 w-44">Remarks</th>
+                      <th className="py-3 px-2 w-28 text-center">Status</th>
+                      <th className="py-3 px-3 w-28 text-center">Date</th>
+                      <th className="py-3 px-2 w-16 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {leads.map(lead => (
-                      <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="p-3 font-bold text-slate-900 truncate" title={lead.customerName || "WhatsApp User"}>
-                          {lead.customerName || "WhatsApp User"}
-                        </td>
-                        <td className="p-3 font-mono text-purple-700 font-bold truncate">
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{lead.customerPhone}</span>
-                          </div>
-                        </td>
-                        <td className="p-3 text-slate-700 font-medium truncate" title={lead.topicDiscussed || "General Inquiry"}>
-                          {lead.topicDiscussed || "General Inquiry"}
-                        </td>
-                        <td className="p-3 text-slate-500 truncate" title={lead.notes || "AI captured contact"}>
-                          {lead.notes || "AI captured contact"}
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-1 min-w-0">
-                            <input
-                              type="text"
-                              value={editingRemarks[lead.id] !== undefined ? editingRemarks[lead.id] : (lead.remark || "")}
-                              onChange={(e) => setEditingRemarks({ ...editingRemarks, [lead.id]: e.target.value })}
-                              onKeyDown={(e) => e.key === "Enter" && updateLeadRemark(lead.id)}
-                              placeholder="Add remark..."
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-purple-500 truncate"
-                            />
-                            {(editingRemarks[lead.id] !== undefined && editingRemarks[lead.id] !== (lead.remark || "")) && (
+                    {filteredLeads.map((lead) => {
+                      const categoryBadgeColor =
+                        lead.category === "Services / Projects"
+                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                          : lead.category === "Job / Hiring"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : lead.category === "Pricing & Quote"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : lead.category === "Support & Questions"
+                          ? "bg-cyan-50 text-cyan-700 border-cyan-200"
+                          : "bg-purple-50 text-purple-700 border-purple-200";
+
+                      return (
+                        <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors align-top">
+                          {/* Customer & Phone */}
+                          <td className="p-3">
+                            <div className="font-bold text-slate-900 leading-tight">
+                              {lead.customerName || "WhatsApp User"}
+                            </div>
+                            <div className="flex items-center gap-1 font-mono text-purple-700 font-bold mt-1 text-[11px]">
+                              <Phone className="h-3 w-3 shrink-0" />
+                              <span>{lead.customerPhone}</span>
+                            </div>
+                            {lead.contactEmail && (
+                              <div className="flex items-center gap-1 text-slate-500 text-[10px] mt-0.5 truncate">
+                                <Mail className="h-2.5 w-2.5 shrink-0" />
+                                <span className="truncate">{lead.contactEmail}</span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Dynamic Category Badge */}
+                          <td className="p-3">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${categoryBadgeColor}`}
+                            >
+                              <Tag className="h-3 w-3" />
+                              <span>{lead.category || "General Inquiry"}</span>
+                            </span>
+                          </td>
+
+                          {/* Topic & Intention */}
+                          <td className="p-3">
+                            <div className="font-semibold text-slate-800 text-xs">
+                              {lead.topicDiscussed || "General Inquiry"}
+                            </div>
+                            {lead.intention && (
+                              <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium border border-slate-200">
+                                <Compass className="h-2.5 w-2.5 text-purple-600" />
+                                <span>{lead.intention}</span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Captured Notes (Completely visible, multi-line, no premature truncate!) */}
+                          <td className="p-3 text-slate-600 leading-relaxed text-xs">
+                            <div className="max-h-24 overflow-y-auto pr-1 whitespace-pre-wrap break-words">
+                              {lead.notes || "AI captured contact"}
+                            </div>
+                            {lead.notes && lead.notes.length > 90 && (
                               <button
                                 type="button"
-                                onClick={() => updateLeadRemark(lead.id)}
-                                disabled={savingRemarkId === lead.id}
-                                className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold shrink-0 transition-all flex items-center gap-0.5 cursor-pointer"
+                                onClick={() => setViewingLead(lead)}
+                                className="text-[11px] text-purple-600 hover:text-purple-800 font-bold mt-1 inline-flex items-center gap-0.5 cursor-pointer"
                               >
-                                {savingRemarkId === lead.id ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : "Save"}
+                                <Eye className="h-3 w-3" /> View full context
                               </button>
                             )}
-                          </div>
-                        </td>
-                        <td className="p-3 text-center">
-                          <select
-                            value={lead.status}
-                            onChange={(e) => updateLeadStatus(lead.id, e.target.value as any)}
-                            className={`border text-[11px] font-bold rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer inline-block ${
-                              lead.status === "NEW" ? "border-amber-200 bg-amber-50 text-amber-800" :
-                              lead.status === "CONTACTED" ? "border-purple-200 bg-purple-50 text-purple-800" :
-                              "border-emerald-200 bg-emerald-50 text-emerald-800"
-                            }`}
-                          >
-                            <option value="NEW">NEW</option>
-                            <option value="CONTACTED">CONTACTED</option>
-                            <option value="CLOSED">CLOSED</option>
-                          </select>
-                        </td>
-                        <td className="py-3 px-3 text-slate-600 text-[11px] text-center font-medium whitespace-nowrap">
-                          {new Date(lead.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+
+                          {/* Remarks */}
+                          <td className="p-3">
+                            <div className="flex items-center gap-1 min-w-0">
+                              <input
+                                type="text"
+                                value={editingRemarks[lead.id] !== undefined ? editingRemarks[lead.id] : (lead.remark || "")}
+                                onChange={(e) => setEditingRemarks({ ...editingRemarks, [lead.id]: e.target.value })}
+                                onKeyDown={(e) => e.key === "Enter" && updateLeadRemark(lead.id)}
+                                placeholder="Add remark..."
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-purple-500"
+                              />
+                              {(editingRemarks[lead.id] !== undefined && editingRemarks[lead.id] !== (lead.remark || "")) && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateLeadRemark(lead.id)}
+                                  disabled={savingRemarkId === lead.id}
+                                  className="px-2 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold shrink-0 transition-all flex items-center gap-0.5 cursor-pointer"
+                                >
+                                  {savingRemarkId === lead.id ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : "Save"}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td className="p-3 text-center">
+                            <select
+                              value={lead.status}
+                              onChange={(e) => updateLeadStatus(lead.id, e.target.value as any)}
+                              className={`border text-[11px] font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer inline-block ${
+                                lead.status === "NEW"
+                                  ? "border-amber-200 bg-amber-50 text-amber-800"
+                                  : lead.status === "CONTACTED"
+                                  ? "border-purple-200 bg-purple-50 text-purple-800"
+                                  : "border-emerald-200 bg-emerald-50 text-emerald-800"
+                              }`}
+                            >
+                              <option value="NEW">NEW</option>
+                              <option value="CONTACTED">CONTACTED</option>
+                              <option value="CLOSED">CLOSED</option>
+                            </select>
+                          </td>
+
+                          {/* Date */}
+                          <td className="py-3 px-3 text-slate-600 text-[11px] text-center font-medium whitespace-nowrap">
+                            {new Date(lead.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
+                          </td>
+
+                          {/* Detail View Button */}
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setViewingLead(lead)}
+                              title="View full lead record"
+                              className="p-1.5 hover:bg-purple-50 rounded-lg text-slate-400 hover:text-purple-700 transition-colors cursor-pointer inline-flex items-center justify-center"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* MODAL: FULL LEAD DETAILS & COMPLETE NOTES */}
+      {viewingLead && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl space-y-4 p-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  Lead Details &amp; AI Notes
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Captured on {new Date(viewingLead.createdAt).toLocaleString()}
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingLead(null)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 text-xs">
+              {/* Customer Header */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-extrabold text-slate-900">{viewingLead.customerName || "WhatsApp User"}</p>
+                  <p className="font-mono text-purple-700 font-bold flex items-center gap-1 mt-0.5">
+                    <Phone className="h-3 w-3" /> {viewingLead.customerPhone}
+                  </p>
+                  {viewingLead.contactEmail && (
+                    <p className="text-slate-500 flex items-center gap-1 mt-0.5">
+                      <Mail className="h-3 w-3" /> {viewingLead.contactEmail}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <span className={`inline-block px-2.5 py-1 rounded-lg text-[11px] font-bold border ${
+                    viewingLead.category === "Services / Projects"
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : viewingLead.category === "Job / Hiring"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-purple-50 text-purple-700 border-purple-200"
+                  }`}>
+                    {viewingLead.category || "General Inquiry"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Topic & Intention */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Topic Discussed</p>
+                  <p className="text-xs font-bold text-slate-800 mt-0.5">{viewingLead.topicDiscussed || "General Inquiry"}</p>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Customer Intention</p>
+                  <p className="text-xs font-bold text-purple-700 mt-0.5">{viewingLead.intention || "General inquiry / Requesting information"}</p>
+                </div>
+              </div>
+
+              {/* Complete Captured Notes (Fully visible, not truncated) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Complete AI Conversation Notes &amp; Captured Requirements
+                </label>
+                <div className="bg-purple-50/50 border border-purple-200 rounded-2xl p-4 text-slate-800 text-xs leading-relaxed whitespace-pre-wrap break-words">
+                  {viewingLead.notes || "No additional notes captured."}
+                </div>
+              </div>
+
+              {/* Remarks */}
+              {viewingLead.remark && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Internal Team Remarks</label>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-700 text-xs">
+                    {viewingLead.remark}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <Button size="sm" onClick={() => setViewingLead(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
