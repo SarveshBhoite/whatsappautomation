@@ -303,6 +303,8 @@ export default function GmailDashboard() {
   // Multi-Account Gmail State
   const [gmailAccounts, setGmailAccounts] = useState<any[]>([]);
   const [selectedGmailAccountId, setSelectedGmailAccountId] = useState<string>("");
+  const [accountTokenValid, setAccountTokenValid] = useState<boolean>(true);
+  const [accountTokenError, setAccountTokenError] = useState<string>("");
 
   const fetchGmailAccounts = async () => {
     try {
@@ -311,15 +313,28 @@ export default function GmailDashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.accounts && data.accounts.length > 0) {
-          setGmailAccounts(data.accounts);
+        const accs = data.accounts || [];
+        setGmailAccounts(accs);
+        if (accs.length === 0) {
+          setSelectedGmailAccountId("");
+          setConnectedEmail("");
+          setAccountTokenValid(true);
+          setAccountTokenError("");
+        } else {
           setSelectedGmailAccountId(prev => {
-            if (prev) return prev;
-            const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
-            if (defaultAcc && defaultAcc.emailAddress) {
-              setConnectedEmail(defaultAcc.emailAddress);
+            const current = prev ? accs.find((a: any) => a.id === prev) : null;
+            const target = current || accs.find((a: any) => a.isDefault) || accs[0];
+            if (target) {
+              setConnectedEmail(target.emailAddress || "");
+              setAccountTokenValid(target.isTokenValid !== false);
+              if (target.isTokenValid === false) {
+                setAccountTokenError("Gmail authorization has expired or was revoked. Please reconnect this account.");
+              } else {
+                setAccountTokenError("");
+              }
+              return target.id;
             }
-            return defaultAcc?.id || "";
+            return "";
           });
         }
       }
@@ -332,8 +347,15 @@ export default function GmailDashboard() {
     try {
       setSelectedGmailAccountId(accountId);
       const acc = gmailAccounts.find(a => a.id === accountId);
-      if (acc && acc.emailAddress) {
-        setConnectedEmail(acc.emailAddress);
+      if (acc) {
+        setConnectedEmail(acc.emailAddress || "");
+        const valid = acc.isTokenValid !== false;
+        setAccountTokenValid(valid);
+        if (!valid) {
+          setAccountTokenError("Gmail authorization has expired or was revoked. Please reconnect this account.");
+        } else {
+          setAccountTokenError("");
+        }
       }
       await fetch(`${BACKEND_URL}/api/gmail/set-default`, {
         method: "POST",
@@ -346,6 +368,29 @@ export default function GmailDashboard() {
       fetchData(selectedLabel, accountId);
     } catch (err) {
       console.warn("Error switching Gmail account:", err);
+    }
+  };
+
+  const handleDisconnectGmail = async (accountId?: string) => {
+    if (!confirm("Are you sure you want to disconnect this Gmail account? Synced messages and auto-replies for this inbox will be stopped.")) return;
+    try {
+      const targetId = accountId || selectedGmailAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/gmail/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify(targetId ? { accountId: targetId } : {})
+      });
+      if (res.ok) {
+        await fetchGmailAccounts();
+        await fetchData(selectedLabel);
+      } else {
+        alert("Failed to disconnect Gmail account.");
+      }
+    } catch (err: any) {
+      alert(`Disconnect Error: ${err.message}`);
     }
   };
 
@@ -424,7 +469,8 @@ export default function GmailDashboard() {
       }
 
       // Non-blocking fetch of config & rules
-      fetch(`${BACKEND_URL}/api/gmail/config`, {
+      const configUrl = `${BACKEND_URL}/api/gmail/config${accountId ? `?accountId=${accountId}` : ""}`;
+      fetch(configUrl, {
         headers: { "x-organization-id": getOrgId() }
       }).then(res => res.ok ? res.json() : null).then(configData => {
         if (configData) {
@@ -439,6 +485,17 @@ export default function GmailDashboard() {
               if (defaultAcc.autoReplyTemplate) setAutoReplyTemplate(defaultAcc.autoReplyTemplate);
               if (!accountId && !selectedGmailAccountId) setSelectedGmailAccountId(defaultAcc.id);
             }
+            if (configData.tokenValid === false) {
+              setAccountTokenValid(false);
+              setAccountTokenError(configData.tokenError || "Gmail authorization has expired. Please reconnect your account.");
+            } else {
+              setAccountTokenValid(true);
+              setAccountTokenError("");
+            }
+          } else {
+            setConnectedEmail("");
+            setAccountTokenValid(true);
+            setAccountTokenError("");
           }
         }
       }).catch(console.error);
@@ -1196,10 +1253,13 @@ export default function GmailDashboard() {
             <AccountSwitcher
               title="Gmail Account"
               theme="rose"
+              align="right"
               accounts={gmailAccounts.map((acc) => ({
                 id: acc.id,
                 label: acc.displayName ? `${acc.displayName} (${acc.emailAddress})` : acc.emailAddress,
-                sublabel: acc.isDefault ? "Primary Email Account" : "Linked Email Account",
+                sublabel: acc.isTokenValid === false 
+                  ? "⚠ Authorization Expired - Reconnect Needed"
+                  : acc.isDefault ? "Primary Email Account" : "Linked Email Account",
                 isDefault: acc.isDefault,
                 isActive: acc.isActive,
                 type: "gmail",
@@ -1223,15 +1283,52 @@ export default function GmailDashboard() {
             <button
               onClick={handleConnectGmail}
               className={`px-3 py-2 lg:px-5 lg:py-2.5 rounded-2xl text-xs font-bold transition shadow-md ${
-                connectedEmail 
+                !accountTokenValid
+                  ? "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20 animate-pulse"
+                  : connectedEmail 
                   ? "bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700"
                   : "bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-emerald-500/20"
               }`}
             >
-              {connectedEmail ? "Reconnect" : "Connect"}
+              {!accountTokenValid ? "Reconnect Account" : connectedEmail ? "Reconnect" : "Connect"}
             </button>
           </div>
         </header>
+
+        {/* Token Expired / Reconnect Needed Prompt Banner */}
+        {!accountTokenValid && connectedEmail && (
+          <div className="bg-gradient-to-r from-rose-500/15 via-red-500/10 to-amber-500/10 border-b border-rose-500/30 px-6 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-xl bg-rose-100 text-rose-600 shrink-0">
+                <AlertCircle className="h-4 w-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-extrabold text-rose-950 flex items-center gap-1.5">
+                  Gmail Authorization Expired for <span className="font-mono underline">{connectedEmail}</span>
+                </span>
+                <span className="text-[11px] text-rose-700">
+                  {accountTokenError || "The Google OAuth refresh token for this account has expired or was revoked. Reconnect to restore live inbox sync and auto-replies."}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleConnectGmail}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <RefreshCw className="h-3 w-3" /> Reconnect Now
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDisconnectGmail(selectedGmailAccountId)}
+                className="px-3 py-1.5 bg-white hover:bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Error Alert Display */}
         {errorMsg && (
@@ -1280,6 +1377,31 @@ export default function GmailDashboard() {
             >
               Sign In with Google <Sparkles className="h-4 w-4" />
             </button>
+          </div>
+        ) : !accountTokenValid && threads.length === 0 ? (
+          /* Account Broken / Disconnected State */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-md mx-auto text-center">
+            <div className="h-20 w-20 rounded-[28px] bg-rose-50 border border-rose-200 flex items-center justify-center mb-6 shadow-lg relative">
+              <AlertCircle className="h-10 w-10 text-rose-600 relative z-10" />
+            </div>
+            <h2 className="text-xl font-extrabold text-slate-900 mb-2">Gmail Authorization Expired</h2>
+            <p className="text-xs text-slate-500 leading-relaxed mb-6">
+              The Google access authorization for <strong>{connectedEmail}</strong> is no longer valid. Re-authenticate to access your mailbox and resume email automations.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleConnectGmail}
+                className="px-6 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs tracking-wide transition shadow-lg shadow-rose-600/20 flex items-center gap-2 cursor-pointer"
+              >
+                Reconnect Gmail <RefreshCw className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => handleDisconnectGmail(selectedGmailAccountId)}
+                className="px-4 py-3 rounded-2xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+              >
+                Disconnect
+              </button>
+            </div>
           </div>
         ) : activeTab === "CAMPAIGNS" ? (
           /* -------------------- BULK CAMPAIGNS TAB VIEW -------------------- */

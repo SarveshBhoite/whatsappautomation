@@ -34,30 +34,34 @@ router.get("/config", async (req: Request, res: Response) => {
     }
 
     const accounts = await prisma.gmailConfig.findMany({
-      where: { organizationId, isActive: true },
+      where: { 
+        organizationId, 
+        isActive: true,
+        emailAddress: { not: "" }
+      },
       orderBy: { createdAt: "desc" },
     });
 
-    let config = accounts.find((a) => a.isDefault) || accounts[0] || null;
+    const targetAccountId = req.query.accountId as string;
+    let config = targetAccountId
+      ? accounts.find((a) => a.id === targetAccountId) || null
+      : accounts.find((a) => a.isDefault) || accounts[0] || null;
 
-    if (!config) {
-      config = await prisma.gmailConfig.create({
-        data: {
-          organizationId,
-          emailAddress: "",
-          accessToken: "",
-          refreshToken: "",
-          isDefault: true,
-          isActive: true,
-          autoReplyEnabled: false,
-          autoReplyTemplate: "You are a helpful customer support agent. Answer questions politely and offer solutions.",
-        },
-      });
+    // Check token validity for active config
+    let tokenValid = true;
+    let tokenError = "";
+    if (config) {
+      if (!config.accessToken && !config.refreshToken) {
+        tokenValid = false;
+        tokenError = "Missing access token. Please reconnect this Gmail account.";
+      }
     }
 
     return res.status(200).json({
       config,
-      accounts: accounts.length > 0 ? accounts : [config],
+      accounts,
+      tokenValid,
+      tokenError,
     });
   } catch (error: any) {
     console.error("Error fetching Gmail config:", error);
@@ -65,17 +69,68 @@ router.get("/config", async (req: Request, res: Response) => {
   }
 });
 
-// GET: All connected Gmail accounts
+// GET: All connected Gmail accounts for this organization
 router.get("/accounts", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    if (!organizationId) {
+      return res.status(200).json({ success: true, accounts: [] });
+    }
     const accounts = await prisma.gmailConfig.findMany({
-      where: { organizationId },
+      where: { 
+        organizationId,
+        isActive: true,
+        emailAddress: { not: "" }
+      },
       orderBy: { createdAt: "desc" },
     });
-    return res.status(200).json({ success: true, accounts });
+
+    // Decorate each account with token status
+    const accountsWithStatus = accounts.map((acc) => ({
+      ...acc,
+      isTokenValid: Boolean(acc.accessToken || acc.refreshToken),
+    }));
+
+    return res.status(200).json({ success: true, accounts: accountsWithStatus });
   } catch (error: any) {
     return res.status(500).json({ error: "Failed to fetch Gmail accounts", details: error.message });
+  }
+});
+
+// POST: Disconnect a Gmail account
+router.post("/disconnect", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.body;
+
+    if (!organizationId) {
+      return res.status(400).json({ error: "Organization ID required" });
+    }
+
+    if (accountId) {
+      await prisma.gmailConfig.deleteMany({
+        where: { id: accountId, organizationId }
+      });
+      // Ensure one of the remaining accounts becomes default
+      const remaining = await prisma.gmailConfig.findFirst({
+        where: { organizationId, isActive: true },
+        orderBy: { createdAt: "desc" }
+      });
+      if (remaining) {
+        await prisma.gmailConfig.update({
+          where: { id: remaining.id },
+          data: { isDefault: true }
+        });
+      }
+    } else {
+      await prisma.gmailConfig.deleteMany({
+        where: { organizationId }
+      });
+    }
+
+    return res.status(200).json({ success: true, message: "Gmail account disconnected successfully" });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to disconnect Gmail account", details: error.message });
   }
 });
 
@@ -288,23 +343,34 @@ router.get("/oauth/callback", async (req: Request, res: Response) => {
 router.get("/threads", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
+    if (!organizationId) {
+      return res.status(200).json([]);
+    }
+
     const label = ((req.query.label as string) || "INBOX").toUpperCase();
     const accountId = req.query.accountId as string;
 
-    let targetConfigId = accountId;
-    if (!targetConfigId) {
-      const defaultAcc = await prisma.gmailConfig.findFirst({
-        where: { organizationId, isActive: true },
-        orderBy: { isDefault: "desc" },
-      });
-      if (defaultAcc) targetConfigId = defaultAcc.id;
+    const activeAccounts = await prisma.gmailConfig.findMany({
+      where: { organizationId, isActive: true, emailAddress: { not: "" } },
+      orderBy: { isDefault: "desc" }
+    });
+
+    // If no active Gmail accounts exist for this organization, return empty array
+    if (activeAccounts.length === 0) {
+      return res.status(200).json([]);
     }
 
-    let whereClause: any = { organizationId };
+    let targetConfig = accountId
+      ? activeAccounts.find((a) => a.id === accountId)
+      : activeAccounts.find((a) => a.isDefault) || activeAccounts[0];
 
-    if (targetConfigId) {
-      whereClause.gmailConfigId = targetConfigId;
+    if (!targetConfig) {
+      return res.status(200).json([]);
     }
+
+    const targetConfigId = targetConfig.id;
+
+    let whereClause: any = { organizationId, gmailConfigId: targetConfigId };
 
     if (label === "STARRED") {
       whereClause.isStarred = true;
@@ -332,8 +398,8 @@ router.get("/threads", async (req: Request, res: Response) => {
       orderBy: { updatedAt: "desc" }
     });
 
-    // Auto-sync from Gmail API if no local threads exist for this account yet
-    if (threads.length === 0) {
+    // Auto-sync from Gmail API if no local threads exist for this account yet and account has tokens
+    if (threads.length === 0 && (targetConfig.accessToken || targetConfig.refreshToken)) {
       try {
         console.log(`[GMAIL ROUTE] 0 local threads found for account '${targetConfigId}' label '${label}'. Triggering live sync...`);
         await syncGmailThreads(organizationId, (global as any).io, label, targetConfigId);

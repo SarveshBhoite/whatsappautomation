@@ -56,8 +56,23 @@ export async function getGmailAccessToken(orgId: string, forceRefresh = false, a
       return { token: updated.accessToken || "", config: updated };
     } catch (err: any) {
       console.error("[GMAIL SERVICE] Failed to refresh access token:", err?.response?.data || err.message);
-      throw new Error(`Failed to refresh Gmail API credentials: ${err.message}`);
+      const isGrantError = err?.response?.data?.error === "invalid_grant" || err?.response?.data?.error_description?.includes("expired") || err?.response?.data?.error_description?.includes("revoked");
+      if (isGrantError) {
+        try {
+          await prisma.gmailConfig.update({
+            where: { id: config.id },
+            data: { accessToken: "" }
+          });
+        } catch (dbErr) {
+          // ignore
+        }
+      }
+      throw new Error(`Gmail authorization expired or revoked for account '${config.emailAddress || config.id}'. Please reconnect your account.`);
     }
+  }
+
+  if (!config.accessToken) {
+    throw new Error(`Gmail authorization expired or missing for account '${config.emailAddress || config.id}'. Please reconnect your account.`);
   }
 
   return { token: config.accessToken || "", config };
