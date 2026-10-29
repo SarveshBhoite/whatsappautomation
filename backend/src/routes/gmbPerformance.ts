@@ -272,57 +272,8 @@ router.get("/", async (req, res) => {
       directionsRequests: getMoMGrowth(dataA.summary.directionsRequests, dataB.summary.directionsRequests),
     };
 
-    // If live Google API returns 0 metrics (e.g. unverified location or API 404), generate realistic preview metrics so charts load cleanly
-    if (dataA.summary.totalViews === 0 && dataA.summary.totalActions === 0) {
-      console.log(`[GMB PERFORMANCE] Google API returned zero metrics for location ${numericLocationId}. Generating realistic fallback performance data.`);
-      
-      let baseId = 0;
-      for (let i = 0; i < numericLocationId.length; i++) {
-        baseId += numericLocationId.charCodeAt(i);
-      }
-      
-      dataA.timeline.forEach((item: any, idx: number) => {
-        const seed = (baseId + idx * 7) % 50;
-        item.WEBSITE_CLICKS = Math.floor(seed * 0.4) + 1;
-        item.CALL_CLICKS = Math.floor(seed * 0.3) + 1;
-        item.BUSINESS_DIRECTION_REQUESTS = Math.floor(seed * 0.5) + 2;
-        item.BUSINESS_IMPRESSIONS_DESKTOP_MAPS = Math.floor(seed * 2.5) + 10;
-        item.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH = Math.floor(seed * 3.2) + 15;
-        item.BUSINESS_IMPRESSIONS_MOBILE_MAPS = Math.floor(seed * 4.1) + 25;
-        item.BUSINESS_IMPRESSIONS_MOBILE_SEARCH = Math.floor(seed * 5.3) + 30;
-        item.totalViews = item.BUSINESS_IMPRESSIONS_DESKTOP_MAPS + item.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH + item.BUSINESS_IMPRESSIONS_MOBILE_MAPS + item.BUSINESS_IMPRESSIONS_MOBILE_SEARCH;
-        item.totalActions = item.WEBSITE_CLICKS + item.CALL_CLICKS + item.BUSINESS_DIRECTION_REQUESTS;
-      });
-
-      // Recalculate summary A
-      dataA.summary.websiteClicks = dataA.timeline.reduce((acc: number, item: any) => acc + item.WEBSITE_CLICKS, 0);
-      dataA.summary.callClicks = dataA.timeline.reduce((acc: number, item: any) => acc + item.CALL_CLICKS, 0);
-      dataA.summary.directionsRequests = dataA.timeline.reduce((acc: number, item: any) => acc + item.BUSINESS_DIRECTION_REQUESTS, 0);
-      dataA.summary.desktopViews = dataA.timeline.reduce((acc: number, item: any) => acc + item.BUSINESS_IMPRESSIONS_DESKTOP_MAPS + item.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH, 0);
-      dataA.summary.mobileViews = dataA.timeline.reduce((acc: number, item: any) => acc + item.BUSINESS_IMPRESSIONS_MOBILE_MAPS + item.BUSINESS_IMPRESSIONS_MOBILE_SEARCH, 0);
-      dataA.summary.searchViews = dataA.timeline.reduce((acc: number, item: any) => acc + item.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH + item.BUSINESS_IMPRESSIONS_MOBILE_SEARCH, 0);
-      dataA.summary.mapsViews = dataA.timeline.reduce((acc: number, item: any) => acc + item.BUSINESS_IMPRESSIONS_DESKTOP_MAPS + item.BUSINESS_IMPRESSIONS_MOBILE_MAPS, 0);
-      dataA.summary.totalViews = dataA.summary.desktopViews + dataA.summary.mobileViews;
-      dataA.summary.totalActions = dataA.summary.websiteClicks + dataA.summary.callClicks + dataA.summary.directionsRequests;
-
-      // Build summary B
-      dataB.summary.totalViews = Math.floor(dataA.summary.totalViews * 0.85);
-      dataB.summary.totalActions = Math.floor(dataA.summary.totalActions * 0.88);
-      dataB.summary.websiteClicks = Math.floor(dataA.summary.websiteClicks * 0.82);
-      dataB.summary.callClicks = Math.floor(dataA.summary.callClicks * 0.90);
-      dataB.summary.directionsRequests = Math.floor(dataA.summary.directionsRequests * 0.87);
-      dataB.summary.desktopViews = Math.floor(dataA.summary.desktopViews * 0.85);
-      dataB.summary.mobileViews = Math.floor(dataA.summary.mobileViews * 0.85);
-      dataB.summary.searchViews = Math.floor(dataA.summary.searchViews * 0.85);
-      dataB.summary.mapsViews = Math.floor(dataA.summary.mapsViews * 0.85);
-
-      // Recalculate growth
-      growth.totalViews = getMoMGrowth(dataA.summary.totalViews, dataB.summary.totalViews);
-      growth.totalActions = getMoMGrowth(dataA.summary.totalActions, dataB.summary.totalActions);
-      growth.websiteClicks = getMoMGrowth(dataA.summary.websiteClicks, dataB.summary.websiteClicks);
-      growth.callClicks = getMoMGrowth(dataA.summary.callClicks, dataB.summary.callClicks);
-      growth.directionsRequests = getMoMGrowth(dataA.summary.directionsRequests, dataB.summary.directionsRequests);
-    }
+    // If live Google API returns 0 metrics, return real 0s without synthetic mock data
+    // The frontend will render authentic zero/empty metrics for unviewed or unverified listings.
 
     res.status(200).json({
       locationName: config.locationName || "Google Listing",

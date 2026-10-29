@@ -1063,26 +1063,8 @@ router.get("/posts", async (req, res) => {
           orderBy: { createdAt: "desc" }
         });
 
-    if (posts.length === 0) {
-      const mockPost = await (prisma.googlePost as any).create({
-        data: {
-          organizationId: orgId,
-          accountId: targetAccId,
-          summary: `Welcome to ${locationName}! Explore our latest services, operational updates, and exclusive customer offerings on Google Maps.`,
-          status: "PUBLISHED",
-          topicType: "STANDARD",
-          callToActionType: "LEARN_MORE",
-          callToActionUrl: "https://www.example.com",
-          mediaUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80"
-        }
-      });
-      posts = [mockPost];
-    } else {
-      posts = posts.map((p: any) => ({
-        ...p,
-        summary: p.summary.startsWith("Welcome to") ? `Welcome to ${locationName}! Explore our latest services, operational updates, and exclusive customer offerings on Google Maps.` : p.summary
-      }));
-    }
+    // Return only real posts created for this organization & account (no synthetic mock posts)
+    // If no posts exist, the frontend displays the clean 'No active updates or local posts found' empty state.
 
     res.status(200).json(posts);
   } catch (error: any) {
@@ -1260,51 +1242,8 @@ router.get("/questions", async (req, res) => {
           orderBy: { createdAt: "desc" }
         });
 
-    if (questions.length === 0) {
-      const mockFaqs = [
-        {
-          id: `seed-1-${Date.now()}`,
-          organizationId: orgId,
-          accountId: targetAccId,
-          gmbQuestionId: `seed-q-1-${targetAccId || "default"}`,
-          authorName: "Amit Sharma",
-          text: `What are the operating hours and turnaround time for ${locationName}?`,
-          answerText: null,
-          status: "UNANSWERED",
-          createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
-        },
-        {
-          id: `seed-2-${Date.now()}`,
-          organizationId: orgId,
-          accountId: targetAccId,
-          gmbQuestionId: `seed-q-2-${targetAccId || "default"}`,
-          authorName: "Neha Patel",
-          text: `Does ${locationName} provide customized packages for local customers?`,
-          answerText: `Yes, ${locationName} offers fully integrated custom solutions.`,
-          status: "ANSWERED",
-          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-        }
-      ];
-
-      for (const faq of mockFaqs) {
-        await (prisma.googleQuestion as any).create({ data: faq });
-      }
-
-      questions = targetAccId
-        ? await (prisma.googleQuestion as any).findMany({
-            where: { organizationId: orgId, OR: [{ accountId: targetAccId }, { accountId: null }] },
-            orderBy: { createdAt: "desc" }
-          })
-        : await (prisma.googleQuestion as any).findMany({
-            where: { organizationId: orgId },
-            orderBy: { createdAt: "desc" }
-          });
-    } else {
-      questions = questions.map((q: any) => ({
-        ...q,
-        text: q.text.includes("turnaround time") ? `What are the operating hours and turnaround time for ${locationName}?` : q.text.includes("customized packages") ? `Does ${locationName} provide customized packages for local customers?` : q.text
-      }));
-    }
+    // Return only actual questions from this organization & account (no synthetic mock Q&A)
+    // If empty, the frontend displays the clean 'Q&A inbox is currently empty' state.
 
     res.status(200).json(questions);
   } catch (error: any) {
@@ -1405,40 +1344,7 @@ router.get("/questions/sync", async (req, res) => {
         orderBy: { createdAt: "desc" }
       });
 
-      // If database is empty, seed mock initial FAQs so the user can test workflows
-      if (localQuestions.length === 0) {
-        const mockFaqs = [
-          {
-            id: `seed-1-${Date.now()}`,
-            organizationId: orgId,
-            gmbQuestionId: `seed-q-1`,
-            authorName: "Amit Sharma",
-            text: "What are your business operating hours and average project turnaround time?",
-            answerText: null,
-            status: "UNANSWERED",
-            createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
-          },
-          {
-            id: `seed-2-${Date.now()}`,
-            organizationId: orgId,
-            gmbQuestionId: `seed-q-2`,
-            authorName: "Neha Patel",
-            text: "Do you provide custom website designing and social media branding packages in Pune?",
-            answerText: "Yes, we offer fully integrated local SEO, social media branding, and web design packages.",
-            status: "ANSWERED",
-            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-          }
-        ];
-
-        for (const faq of mockFaqs) {
-          await prisma.googleQuestion.create({ data: faq });
-        }
-
-        localQuestions = await prisma.googleQuestion.findMany({
-          where: { organizationId: orgId },
-          orderBy: { createdAt: "desc" }
-        });
-      }
+      // Return actual local questions without synthetic seeds
 
       res.status(200).json({
         message: "Synchronized local FAQs repository (Google Q&A API is deprecated).",
@@ -1602,43 +1508,9 @@ router.get("/media", async (req, res) => {
       }
     }
 
-    // Fallback: Return mock gallery photos for developer preview if API is not fully connected
-    const mockMedia = [
-      {
-        name: "mock-1",
-        category: "COVER",
-        googleUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80",
-        thumbnailUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&auto=format&fit=crop&q=80",
-        createTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-        source: "MOCK"
-      },
-      {
-        name: "mock-2",
-        category: "TEAMS",
-        googleUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&auto=format&fit=crop&q=80",
-        thumbnailUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&auto=format&fit=crop&q=80",
-        createTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        source: "MOCK"
-      },
-      {
-        name: "mock-3",
-        category: "INTERIOR",
-        googleUrl: "https://images.unsplash.com/photo-1498804103079-a6351b050096?w=800&auto=format&fit=crop&q=80",
-        thumbnailUrl: "https://images.unsplash.com/photo-1498804103079-a6351b050096?w=400&auto=format&fit=crop&q=80",
-        createTime: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        source: "MOCK"
-      },
-      {
-        name: "mock-4",
-        category: "EXTERIOR",
-        googleUrl: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=800&auto=format&fit=crop&q=80",
-        thumbnailUrl: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=400&auto=format&fit=crop&q=80",
-        createTime: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-        source: "MOCK"
-      }
-    ];
-
-    res.status(200).json(mockMedia);
+    // Return only real media from the connected Google Business account.
+    // If not connected or no media uploaded yet, return empty list [] so UI shows clean 'Your gallery has no photos' state.
+    res.status(200).json([]);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -1806,12 +1678,8 @@ router.post("/media/upload", async (req, res) => {
       }
     }
 
-    // Mock upload success in developer preview mode
-    res.status(201).json({
-      message: "Photo processed successfully (Mock Mode).",
-      name: `mock-uploaded-${Date.now()}`,
-      category: category,
-      googleUrl: image
+    return res.status(400).json({
+      error: "Google Business account is not connected or authorization is required to upload photos."
     });
   } catch (error: any) {
     console.error("Failed to upload GMB photo:", error);
