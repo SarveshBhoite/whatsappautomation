@@ -38,11 +38,24 @@ async function getGmbConfig(orgId: string, accountId?: string) {
 router.get("/accounts", async (req, res) => {
   try {
     const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    if (!orgId) {
+      return res.status(200).json({ accounts: [] });
+    }
     const accounts = await (prisma as any).googleBusinessConfig.findMany({
       where: { organizationId: orgId },
       orderBy: { createdAt: "desc" }
     });
-    return res.status(200).json({ accounts });
+
+    const accountsWithStatus = accounts.map((acc: any) => {
+      const hasAuth = Boolean(acc.googleRefreshToken || acc.refreshToken || acc.accessToken);
+      return {
+        ...acc,
+        isTokenValid: hasAuth,
+        tokenError: hasAuth ? "" : "Google authorization is missing or expired. Please reconnect.",
+      };
+    });
+
+    return res.status(200).json({ accounts: accountsWithStatus });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -783,10 +796,14 @@ router.get("/reviews", async (req, res) => {
     const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
     const accountId = req.query.accountId as string;
 
+    const config = await getGmbConfig(orgId, accountId);
+    const targetAccId = config?.id;
+
+    // Strict account scoping: match target account ID or null legacy reviews
     const whereClause: any = { organizationId: orgId };
-    if (accountId) {
+    if (targetAccId) {
       whereClause.OR = [
-        { accountId },
+        { accountId: targetAccId },
         { accountId: null }
       ];
     }
@@ -2053,12 +2070,30 @@ router.get("/places/search", async (req, res) => {
   }
 });
 
-// POST: Disconnect Google Business Profile
+// POST: Disconnect Google Business Profile (Single Account or All for Org)
 router.post("/disconnect", async (req, res) => {
   try {
-    const orgId = (req.body.orgId as string) || (req.headers["x-organization-id"] as string) || "";
-    if (orgId) {
-      await prisma.googleBusinessConfig.updateMany({
+    const orgId = (req.body.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const { accountId } = req.body;
+    if (!orgId) {
+      return res.status(400).json({ error: "Organization ID is required" });
+    }
+
+    if (accountId) {
+      // Disconnect or mark expired for the specific account
+      await (prisma as any).googleBusinessConfig.updateMany({
+        where: { id: accountId, organizationId: orgId },
+        data: {
+          googleRefreshToken: null,
+          refreshToken: null,
+          accessToken: "",
+          googleLocationId: null,
+          googlePlaceId: null,
+          googleReviewUrl: null,
+        },
+      });
+    } else {
+      await (prisma as any).googleBusinessConfig.updateMany({
         where: { organizationId: orgId },
         data: {
           googleRefreshToken: null,
@@ -2070,9 +2105,35 @@ router.post("/disconnect", async (req, res) => {
         },
       });
     }
-    return res.status(200).json({ success: true, message: "Google Business profile disconnected successfully." });
+    return res.status(200).json({ success: true, message: "Google Business account disconnected successfully." });
   } catch (error: any) {
-    return res.status(500).json({ error: "Failed to disconnect Google Business profile", details: error.message });
+    return res.status(500).json({ error: "Failed to disconnect Google Business account", details: error.message });
+  }
+});
+
+// DELETE: Delete a GMB Account strictly scoped to org
+router.delete("/accounts/:id", async (req, res) => {
+  try {
+    const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const { id } = req.params;
+    if (!orgId) {
+      return res.status(400).json({ error: "Organization ID is required" });
+    }
+
+    const existing = await (prisma as any).googleBusinessConfig.findFirst({
+      where: { id, organizationId: orgId }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Account not found or access denied" });
+    }
+
+    await (prisma as any).googleBusinessConfig.delete({
+      where: { id }
+    });
+
+    return res.status(200).json({ success: true, message: "Google Business account deleted successfully." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

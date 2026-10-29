@@ -592,11 +592,15 @@ export default function GmbPerformanceDashboard() {
   // Account Switcher State
   const [gmbAccounts, setGmbAccounts] = useState<AccountOption[]>([]);
   const [selectedGmbAccountId, setSelectedGmbAccountId] = useState<string>("");
+  const [accountTokenValid, setAccountTokenValid] = useState<boolean>(true);
+  const [accountTokenError, setAccountTokenError] = useState<string>("");
 
   const fetchGmbAccounts = async () => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/accounts`, {
-        headers: { "x-organization-id": getOrgId() }
+      const activeOrg = getOrgId();
+      if (!activeOrg) return;
+      const res = await fetch(`${BACKEND_URL}/api/gmb/accounts?orgId=${encodeURIComponent(activeOrg)}`, {
+        headers: { "x-organization-id": activeOrg }
       });
       if (res.ok) {
         const resData = await res.json();
@@ -604,17 +608,35 @@ export default function GmbPerformanceDashboard() {
         if (Array.isArray(accList) && accList.length > 0) {
           const options: AccountOption[] = accList.map((a: any) => ({
             id: a.id,
-            label: a.locationName || "Google Business Location",
+            label: a.locationName || a.accountName || "Google Business Location",
             sublabel: a.googleLocationId ? `${a.googleLocationId.split("/").pop()} • ${a.isDefault ? "Primary" : "Linked"}` : (a.isDefault ? "Primary Location" : "Linked Location"),
             isDefault: a.isDefault,
             type: "google",
+            isActive: a.isTokenValid !== false,
           }));
           setGmbAccounts(options);
-          setSelectedGmbAccountId(prev => {
-            if (prev) return prev;
+
+          let currentSelectedId = selectedGmbAccountId;
+          if (!currentSelectedId || !options.some(o => o.id === currentSelectedId)) {
             const defaultAcc = options.find((o) => o.isDefault) || options[0];
-            return defaultAcc?.id || "";
-          });
+            currentSelectedId = defaultAcc?.id || "";
+            setSelectedGmbAccountId(currentSelectedId);
+          }
+
+          const activeAccountObj = accList.find((a: any) => a.id === currentSelectedId) || accList[0];
+          if (activeAccountObj) {
+            const isValid = activeAccountObj.isTokenValid !== false;
+            setAccountTokenValid(isValid);
+            setAccountTokenError(isValid ? "" : "Google Business authorization has expired or is disconnected. Please reconnect.");
+          } else {
+            setAccountTokenValid(true);
+            setAccountTokenError("");
+          }
+        } else {
+          setGmbAccounts([]);
+          setSelectedGmbAccountId("");
+          setAccountTokenValid(true);
+          setAccountTokenError("");
         }
       }
     } catch (err) {
@@ -627,15 +649,38 @@ export default function GmbPerformanceDashboard() {
 
     const handleAccountChange = (e: any) => {
       if ((e.detail?.platform === "gmb" || e.detail?.platform === "google") && e.detail?.accountId) {
-        setSelectedGmbAccountId(e.detail.accountId);
+        handleSwitchGmbAccount(e.detail.accountId);
       }
     };
+
+    const handleOrgSwitch = () => {
+      const newOrg = getOrgId();
+      setOrgId(newOrg);
+      setSelectedGmbAccountId("");
+      fetchGmbAccounts();
+    };
+
     window.addEventListener("account-changed", handleAccountChange);
-    return () => window.removeEventListener("account-changed", handleAccountChange);
+    window.addEventListener("organization-switched", handleOrgSwitch);
+    window.addEventListener("storage", handleOrgSwitch);
+
+    return () => {
+      window.removeEventListener("account-changed", handleAccountChange);
+      window.removeEventListener("organization-switched", handleOrgSwitch);
+      window.removeEventListener("storage", handleOrgSwitch);
+    };
   }, [orgId]);
 
   const handleSwitchGmbAccount = (accountId: string) => {
     setSelectedGmbAccountId(accountId);
+    const matched = gmbAccounts.find(a => a.id === accountId);
+    if (matched && (matched as any).isActive === false) {
+      setAccountTokenValid(false);
+      setAccountTokenError("Google Business authorization has expired or is disconnected. Please reconnect.");
+    } else {
+      setAccountTokenValid(true);
+      setAccountTokenError("");
+    }
     fetchPerformance(selectedAMonth, selectedAYear, selectedBMonth, selectedBYear, accountId);
     fetchProfileDetails(accountId);
     fetchPosts(accountId);
@@ -1706,6 +1751,36 @@ export default function GmbPerformanceDashboard() {
               />
             </div>
 
+          </div>
+
+          {/* Token Expired / Reconnect Prompt Banner */}
+          {!accountTokenValid && (
+            <div className="bg-gradient-to-r from-amber-500/15 via-red-500/10 to-rose-500/10 border border-amber-500/30 rounded-2xl px-5 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 rounded-xl bg-amber-100 text-amber-700 shrink-0">
+                  <AlertCircle className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-amber-900">
+                    Google Business Authorization Expired or Disconnected
+                  </span>
+                  <span className="text-[11px] text-amber-800">
+                    {accountTokenError || "The Google OAuth refresh token for this location has expired. Reconnect to resume profile edits, performance stats, and live posting."}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={`${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/gmb`}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className="h-3 w-3" /> Reconnect Location
+                </a>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             {/* Horizontal Sub-tabs Navigation */}
             <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs gap-1">
               <button

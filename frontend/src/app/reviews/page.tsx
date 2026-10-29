@@ -79,6 +79,8 @@ export default function ReviewsPage() {
 
   const [gmbAccounts, setGmbAccounts] = useState<AccountOption[]>([]);
   const [selectedGmbAccountId, setSelectedGmbAccountId] = useState<string>("");
+  const [accountTokenValid, setAccountTokenValid] = useState<boolean>(true);
+  const [accountTokenError, setAccountTokenError] = useState<string>("");
   const [copiedLink, setCopiedLink] = useState(false);
 
   const [activeFilter, setActiveFilter] = useState<"ALL" | "GOOD" | "BAD">("ALL");
@@ -149,13 +151,26 @@ export default function ReviewsPage() {
             sublabel: a.googleLocationId ? `${a.googleLocationId.split("/").pop()} • ${a.isDefault ? "Primary" : "Linked"}` : (a.isDefault ? "Primary Location" : "Linked Location"),
             isDefault: a.isDefault,
             type: "google",
+            isActive: a.isTokenValid !== false,
           }));
           setGmbAccounts(options);
-          setSelectedGmbAccountId(prev => {
-            if (prev && options.some(o => o.id === prev)) return prev;
+
+          let currentSelectedId = selectedGmbAccountId;
+          if (!currentSelectedId || !options.some(o => o.id === currentSelectedId)) {
             const defaultAcc = options.find((o) => o.isDefault) || options[0];
-            return defaultAcc?.id || "";
-          });
+            currentSelectedId = defaultAcc?.id || "";
+            setSelectedGmbAccountId(currentSelectedId);
+          }
+
+          const activeAccountObj = accList.find((a: any) => a.id === currentSelectedId) || accList[0];
+          if (activeAccountObj) {
+            const isValid = activeAccountObj.isTokenValid !== false;
+            setAccountTokenValid(isValid);
+            setAccountTokenError(isValid ? "" : "Google Business authorization has expired or is disconnected. Please reconnect.");
+          } else {
+            setAccountTokenValid(true);
+            setAccountTokenError("");
+          }
         }
       }
     } catch (err) {
@@ -165,6 +180,14 @@ export default function ReviewsPage() {
 
   const handleSwitchGmbAccount = (accountId: string) => {
     setSelectedGmbAccountId(accountId);
+    const matched = gmbAccounts.find(a => a.id === accountId);
+    if (matched && (matched as any).isActive === false) {
+      setAccountTokenValid(false);
+      setAccountTokenError("Google Business authorization has expired or is disconnected. Please reconnect.");
+    } else {
+      setAccountTokenValid(true);
+      setAccountTokenError("");
+    }
     const resolvedOrg = orgId || getOrgId();
     fetchConfig(resolvedOrg, accountId);
     fetchReviews(resolvedOrg, accountId);
@@ -196,8 +219,23 @@ export default function ReviewsPage() {
       }
     });
 
+    // Organization switch dynamic sync
+    const handleOrgSwitch = () => {
+      const newOrg = getOrgId();
+      setOrgId(newOrg);
+      setSelectedGmbAccountId("");
+      fetchGmbAccounts(newOrg);
+      fetchConfig(newOrg);
+      fetchReviews(newOrg);
+    };
+
+    window.addEventListener("organization-switched", handleOrgSwitch);
+    window.addEventListener("storage", handleOrgSwitch);
+
     return () => {
       socket.disconnect();
+      window.removeEventListener("organization-switched", handleOrgSwitch);
+      window.removeEventListener("storage", handleOrgSwitch);
     };
   }, []);
 
@@ -404,6 +442,33 @@ export default function ReviewsPage() {
             </Button>
           </div>
         </header>
+
+        {/* Token Expired / Reconnect Prompt Banner */}
+        {!accountTokenValid && (
+          <div className="bg-gradient-to-r from-amber-500/15 via-red-500/10 to-rose-500/10 border-b border-amber-500/30 px-6 py-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 rounded-xl bg-amber-100 text-amber-700 shrink-0">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-amber-900">
+                  Google Account Connection Expired or Disconnected
+                </span>
+                <span className="text-[11px] text-amber-800">
+                  {accountTokenError || "The Google OAuth token for this location has expired. Reconnect to resume review syncing and automated AI replies."}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href={`${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/reviews`}
+                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className="h-3 w-3" /> Reconnect Location
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Dashboard Panels Scroll Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full max-w-7xl mx-auto">
