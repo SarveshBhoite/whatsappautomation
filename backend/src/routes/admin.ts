@@ -854,7 +854,7 @@ router.post("/flows", async (req: Request, res: Response) => {
 
     if (id) {
       // Check if updating to an existing flow ID that exists
-      const existingFlow = await prisma.flow.findUnique({ where: { id } });
+      const existingFlow = await prisma.flow.findFirst({ where: { id, organizationId } });
       if (existingFlow) {
         flow = await prisma.flow.update({
           where: { id },
@@ -985,6 +985,13 @@ router.post("/flows/:id/archive", async (req: Request, res: Response) => {
     const organizationId = getOrgId(req);
     const { id } = req.params;
 
+    const existingFlow = await prisma.flow.findFirst({
+      where: { id: id as string, organizationId },
+    });
+    if (!existingFlow) {
+      return res.status(404).json({ error: "Flow not found or access denied" });
+    }
+
     const updatedFlow = await prisma.flow.update({
       where: { id: id as string },
       data: { isActive: false, status: "Archived" },
@@ -1047,6 +1054,13 @@ router.delete("/flows/:id", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
     const { id } = req.params;
+
+    const existingFlow = await prisma.flow.findFirst({
+      where: { id: id as string, organizationId },
+    });
+    if (!existingFlow) {
+      return res.status(404).json({ error: "Flow not found or access denied" });
+    }
 
     const deletedFlow = await prisma.flow.delete({
       where: { id: id as string },

@@ -768,10 +768,24 @@ export default function Dashboard() {
     fetchGoogleConfig();
     fetchActiveFlow("whatsapp");
 
+    // Listen to organization switch events across the dashboard
+    const handleOrgSwitch = () => {
+      fetchConversations();
+      fetchConfig();
+      fetchInstagramConfig();
+      fetchGoogleConfig();
+      fetchActiveFlow(selectedPlatform);
+    };
+
+    window.addEventListener("organization-switched", handleOrgSwitch);
+    window.addEventListener("storage", handleOrgSwitch);
+
     return () => {
       socket.disconnect();
+      window.removeEventListener("organization-switched", handleOrgSwitch);
+      window.removeEventListener("storage", handleOrgSwitch);
     };
-  }, []);
+  }, [selectedPlatform]);
 
   // Scroll to bottom of chat
   useEffect(() => {
