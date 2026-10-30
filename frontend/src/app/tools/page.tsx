@@ -156,7 +156,7 @@ interface SeoAuditData {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export default function ToolsSuitePage() {
-  const [activeTab, setActiveTab] = useState<"seo" | "ai_content" | "youtube_competitor" | "leads">("seo");
+  const [activeTab, setActiveTab] = useState<"seo" | "ai_content">("seo");
   const [targetUrl, setTargetUrl] = useState("");
   const [strategy, setStrategy] = useState<"mobile" | "desktop">("mobile");
   const [auditing, setAuditing] = useState(false);
@@ -554,29 +554,7 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
           <span className="text-[9px] bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">Live</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab("youtube_competitor")}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
-            activeTab === "youtube_competitor"
-              ? "bg-white text-red-700 border border-slate-200 shadow-2xs"
-              : "text-slate-500 hover:text-slate-800 hover:bg-white/60"
-          }`}
-        >
-          <TrendingUp className="h-3.5 w-3.5 text-red-600" /> YouTube Competitor Benchmarking
-          <span className="text-[9px] bg-slate-200/80 text-slate-600 px-1.5 py-0.2 rounded font-mono">Next</span>
-        </button>
 
-        <button
-          onClick={() => setActiveTab("leads")}
-          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
-            activeTab === "leads"
-              ? "bg-white text-sky-700 border border-slate-200 shadow-2xs"
-              : "text-slate-500 hover:text-slate-800 hover:bg-white/60"
-          }`}
-        >
-          <Users className="h-3.5 w-3.5 text-sky-600" /> Google Maps Lead Prospector
-          <span className="text-[9px] bg-slate-200/80 text-slate-600 px-1.5 py-0.2 rounded font-mono">Next</span>
-        </button>
       </div>
 
       {/* Content Body Scroll Area */}
@@ -1629,37 +1607,7 @@ ${humanizedOutput ? `HUMANIZED REWRITE (${humanizeMode}):\n${humanizedOutput}` :
           </div>
         )}
 
-        {/* TAB 3: YOUTUBE COMPETITOR BENCHMARKING (PREVIEW) */}
-        {activeTab === "youtube_competitor" && (
-          <div className="max-w-4xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 text-center space-y-4 shadow-xs">
-            <div className="h-16 w-16 bg-red-50 border border-red-200 rounded-full flex items-center justify-center mx-auto text-red-600 shadow-2xs">
-              <TrendingUp className="h-8 w-8" />
-            </div>
-            <h2 className="text-xl font-black text-slate-900">YouTube Competitor Benchmarking Tool</h2>
-            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed font-medium">
-              Compare your YouTube channel&apos;s view velocity, upload frequency, and top performing keywords side-by-side against any public YouTube creator handle.
-            </p>
-            <span className="inline-block px-3 py-1 bg-red-50 text-red-700 border border-red-200 text-xs font-bold rounded-full">
-              Module Ready for Next Addition
-            </span>
-          </div>
-        )}
 
-        {/* TAB 4: GOOGLE MAPS LEAD PROSPECTOR (PREVIEW) */}
-        {activeTab === "leads" && (
-          <div className="max-w-4xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 text-center space-y-4 shadow-xs">
-            <div className="h-16 w-16 bg-sky-50 border border-sky-200 rounded-full flex items-center justify-center mx-auto text-sky-600 shadow-2xs">
-              <Users className="h-8 w-8" />
-            </div>
-            <h2 className="text-xl font-black text-slate-900">Google Maps Business Lead Prospector</h2>
-            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed font-medium">
-              Extract local business listings by category &amp; city, discover unclaimed profiles, extract phone numbers, and export directly into sales outreach pipelines.
-            </p>
-            <span className="inline-block px-3 py-1 bg-sky-50 text-sky-700 border border-sky-200 text-xs font-bold rounded-full">
-              Module Ready for Next Addition
-            </span>
-          </div>
-        )}
 
       </div>
     </div>
