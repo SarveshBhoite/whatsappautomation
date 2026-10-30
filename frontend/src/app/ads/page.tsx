@@ -1085,7 +1085,18 @@ export default function GoogleAdsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    setOrgId(getOrgId());
+    const handleOrgSync = () => {
+      const activeOrg = getOrgId();
+      setOrgId(activeOrg);
+      setSelectedCustomerId("");
+    };
+    handleOrgSync();
+    window.addEventListener("organization-switched", handleOrgSync);
+    window.addEventListener("storage", handleOrgSync);
+    return () => {
+      window.removeEventListener("organization-switched", handleOrgSync);
+      window.removeEventListener("storage", handleOrgSync);
+    };
   }, []);
 
   const [isConnected, setIsConnected] = useState(false);

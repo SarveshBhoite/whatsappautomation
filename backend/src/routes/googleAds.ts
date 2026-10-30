@@ -252,7 +252,49 @@ router.get("/accounts", async (req, res) => {
       where: { organizationId: orgId, isActive: true },
       orderBy: [{ isManager: "desc" }, { createdAt: "asc" }]
     });
-    res.status(200).json(accounts);
+
+    const gmbConfig = await prisma.googleBusinessConfig.findFirst({
+      where: { organizationId: orgId }
+    });
+    const isTokenValid = Boolean(gmbConfig?.googleRefreshToken);
+
+    const decorated = accounts.map((acc: any) => ({
+      ...acc,
+      isTokenValid
+    }));
+
+    res.status(200).json(decorated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/ads/accounts/:customerId
+ * Disconnect/remove a customer account from this organization.
+ */
+router.delete("/accounts/:customerId", async (req, res) => {
+  try {
+    const orgId = getOrgId(req);
+    const { customerId } = req.params;
+    if (!customerId) return res.status(400).json({ error: "customerId is required" });
+    const cidClean = customerId.replace(/-/g, "").trim();
+
+    await prisma.googleAdAccount.updateMany({
+      where: { organizationId: orgId, customerId: cidClean },
+      data: { isActive: false }
+    });
+
+    // If active in config, clear it
+    const config = await prisma.googleBusinessConfig.findFirst({ where: { organizationId: orgId } });
+    if (config?.googleAdsCustomerId === cidClean) {
+      await prisma.googleBusinessConfig.update({
+        where: { id: config.id },
+        data: { googleAdsCustomerId: null }
+      });
+    }
+
+    res.status(200).json({ message: "Google Ad account disconnected successfully", customerId: cidClean });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

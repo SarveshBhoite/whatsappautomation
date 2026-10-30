@@ -1653,7 +1653,10 @@ export class GoogleAdsService {
       };
 
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-app-${Date.now()}`;
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error("Failed to create App campaign: No resourceName returned from Google Ads API.");
+      }
       const campaignId = campaignRef.split("/").pop();
 
       return {
@@ -1662,12 +1665,8 @@ export class GoogleAdsService {
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads App Campaign REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-app-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `app-${Date.now()}`
-      };
+      console.error("Google Ads App Campaign REST call failed:", err?.response?.data || err.message);
+      throw new Error(err?.response?.data?.error?.message || err.message || "Failed to create App Campaign in Google Ads");
     }
   }
 
@@ -1713,7 +1712,10 @@ export class GoogleAdsService {
       };
 
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-yt-${Date.now()}`;
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error("Failed to create YouTube campaign: No resourceName returned from Google Ads API.");
+      }
       const campaignId = campaignRef.split("/").pop();
 
       return {
@@ -1722,12 +1724,8 @@ export class GoogleAdsService {
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads YouTube Campaign REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-yt-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `yt-${Date.now()}`
-      };
+      console.error("Google Ads YouTube Campaign REST call failed:", err?.response?.data || err.message);
+      throw new Error(err?.response?.data?.error?.message || err.message || "Failed to create YouTube Campaign in Google Ads");
     }
   }
 
@@ -1772,7 +1770,10 @@ export class GoogleAdsService {
       };
 
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-pmax-${Date.now()}`;
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error("Failed to create Local Performance Max campaign: No resourceName returned from Google Ads API.");
+      }
       const campaignId = campaignRef.split("/").pop();
 
       return {
@@ -1781,12 +1782,8 @@ export class GoogleAdsService {
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads Local Performance Max REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-pmax-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `pmax-${Date.now()}`
-      };
+      console.error("Google Ads Local Performance Max REST call failed:", err?.response?.data || err.message);
+      throw new Error(err?.response?.data?.error?.message || err.message || "Failed to create Local Performance Max Campaign in Google Ads");
     }
   }
 
@@ -2559,7 +2556,10 @@ export class GoogleAdsService {
       };
 
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-search-${Date.now()}`;
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error("Failed to create Search campaign: No resourceName returned from Google Ads API.");
+      }
       const campaignId = campaignRef.split("/").pop();
 
       return {
@@ -2568,12 +2568,8 @@ export class GoogleAdsService {
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads No Guidance Search REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-search-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `search-${Date.now()}`
-      };
+      console.error("Google Ads No Guidance Search REST call failed:", err?.response?.data || err.message);
+      throw new Error(err?.response?.data?.error?.message || err.message || "Failed to create Search Campaign in Google Ads");
     }
   }
 
@@ -2942,7 +2938,10 @@ export class GoogleAdsService {
       };
 
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-app-${Date.now()}`;
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error("Failed to create App campaign: No resourceName returned from Google Ads API.");
+      }
       const campaignId = campaignRef.split("/").pop();
 
       return {
@@ -2951,12 +2950,8 @@ export class GoogleAdsService {
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads No Guidance App REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-app-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `app-${Date.now()}`
-      };
+      console.error("Google Ads No Guidance App REST call failed:", err?.response?.data || err.message);
+      throw new Error(err?.response?.data?.error?.message || err.message || "Failed to create App Campaign in Google Ads");
     }
   }
 
@@ -3002,7 +2997,10 @@ export class GoogleAdsService {
       };
 
       const res = await axios.post(`${ADS_BASE}/customers/${cid}/campaigns:mutate`, campaignPayload, { headers });
-      const campaignRef = res.data?.results?.[0]?.resourceName || `customers/${cid}/campaigns/mock-shopping-${Date.now()}`;
+      const campaignRef = res.data?.results?.[0]?.resourceName;
+      if (!campaignRef) {
+        throw new Error("Failed to create Shopping campaign: No resourceName returned from Google Ads API.");
+      }
       const campaignId = campaignRef.split("/").pop();
 
       return {
@@ -3011,12 +3009,8 @@ export class GoogleAdsService {
         campaignId
       };
     } catch (err: any) {
-      console.warn("Google Ads No Guidance Shopping REST call failed, returning simulated resource IDs:", err.message);
-      return {
-        campaignResourceName: `customers/${customerId}/campaigns/mock-shopping-${Date.now()}`,
-        budgetResourceName: `customers/${customerId}/campaignBudgets/mock-budget-${Date.now()}`,
-        campaignId: `shopping-${Date.now()}`
-      };
+      console.error("Google Ads No Guidance Shopping REST call failed:", err?.response?.data || err.message);
+      throw new Error(err?.response?.data?.error?.message || err.message || "Failed to create Shopping Campaign in Google Ads");
     }
   }
 
