@@ -9,7 +9,7 @@ import {
   Phone, Bell, LayoutGrid, List, Info, PlusCircle, ArrowUpRight,
   Activity, Calendar, Filter, Download, Bot, Settings, Users,
   Layers, FileText, TrendingDown, Award, Star, RotateCcw,
-  Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare, SlidersHorizontal
+  Building2, Check, Minus, BadgePercent, ShieldCheck, MessageSquare, SlidersHorizontal, LogOut
 } from "lucide-react";
 import CreateCampaignModal from "@/components/meta-ads/CreateCampaignModal";
 import EngagementCampaignFlow from "@/components/meta-ads/EngagementCampaignFlow";
@@ -181,6 +181,33 @@ function MetaAdsWorkspace({
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeCampaignFlow, setActiveCampaignFlow] = useState<string | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  const handleDisconnectMeta = async () => {
+    if (!confirm("Are you sure you want to disconnect Meta Ads from this organization?")) return;
+    setIsDisconnecting(true);
+    try {
+      const res = await fetch(`${BACKEND}/api/meta-ads/disconnect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-organization-id": orgId },
+        body: JSON.stringify({ organizationId: orgId }),
+      });
+      if (res.ok) {
+        showToast("Meta Ads disconnected successfully ✓");
+        setConfig(null);
+        setAccounts([]);
+        setSelectedAccountId("");
+        setCampaigns([]);
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || "Disconnect failed");
+      }
+    } catch (e: any) {
+      showToast(`Error: ${e.message}`);
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
 
   // Form state
   const [formAppId, setFormAppId] = useState("");
@@ -299,30 +326,21 @@ function MetaAdsWorkspace({
     }
   }, [orgId, selectedAccountId]);
 
-  const fetchCampaigns = useCallback(async () => {
+  const fetchCampaigns = useCallback(async (currentAccountId?: string) => {
     try {
-      const res = await fetch(`${BACKEND}/api/meta-ads/campaigns?organizationId=${orgId}`);
+      const targetAcc = currentAccountId || selectedAccountId;
+      const queryParams = new URLSearchParams({ organizationId: orgId });
+      if (targetAcc) queryParams.set("adAccountId", targetAcc);
+
+      const res = await fetch(`${BACKEND}/api/meta-ads/campaigns?${queryParams.toString()}`);
       const data = await res.json();
       if (data.campaigns) {
         setCampaigns(data.campaigns);
-        if (data.campaigns.length === 0) {
-          fetch(`${BACKEND}/api/meta-ads/sync`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ organizationId: orgId }),
-          }).then(r => r.json()).then(syncData => {
-            if (syncData.success) {
-              fetch(`${BACKEND}/api/meta-ads/campaigns?organizationId=${orgId}`).then(r => r.json()).then(d => {
-                if (d.campaigns) setCampaigns(d.campaigns);
-              });
-            }
-          });
-        }
       }
     } catch (e: any) {
       console.warn("Failed to fetch Meta campaigns:", e);
     }
-  }, [orgId]);
+  }, [orgId, selectedAccountId]);
 
   const handleSyncLive = async (targetAdAccountId?: string) => {
     setSyncing(true);
@@ -356,6 +374,7 @@ function MetaAdsWorkspace({
         body: JSON.stringify({ organizationId: orgId, adAccountId: newAccountId }),
       });
       showToast(`Connected to Meta Ad Account (${newAccountId})`);
+      fetchCampaigns(newAccountId);
       handleSyncLive(newAccountId);
     } catch (err: any) {
       showToast(`Account selection failed: ${err.message}`);
@@ -420,21 +439,11 @@ function MetaAdsWorkspace({
     });
   }, [fetchMetaConfig, fetchAccounts, fetchCampaigns]);
 
-  // Derive AdSets & Ads
+  // Derive AdSets & Ads cleanly from authentic campaign hierarchy (no synthetic dummy items)
   const allAdSets = campaigns.flatMap(c =>
     c.adSets && c.adSets.length > 0
       ? c.adSets.map((as: any) => ({ ...as, campaignName: c.name, campaignObjective: c.objective }))
-      : [{
-        id: `as_${c.id}`,
-        name: `${c.name} Ad Set`,
-        campaignName: c.name,
-        campaignObjective: c.objective,
-        dailyBudget: c.dailyBudget,
-        destinationType: "WHATSAPP",
-        optimizationGoal: "MESSAGES",
-        status: c.status || "ACTIVE",
-        targeting: { countries: ["India"], ageMin: 18, ageMax: 65, interests: ["Digital Marketing", "Business Owners"] }
-      }]
+      : []
   );
 
   const allAds = campaigns.flatMap(c =>
@@ -442,25 +451,9 @@ function MetaAdsWorkspace({
       ? c.adSets.flatMap((as: any) =>
         as.ads && as.ads.length > 0
           ? as.ads.map((ad: any) => ({ ...ad, campaignName: c.name, adSetName: as.name }))
-          : [{
-            id: `ad_${as.id}`,
-            name: `${as.name} Creative`,
-            campaignName: c.name,
-            adSetName: as.name,
-            creative: { headline: "Boost Your Business Sales Today", body: "Connect with thousands of leads directly on WhatsApp." },
-            approvalStatus: "APPROVED",
-            status: "ACTIVE"
-          }]
+          : []
       )
-      : [{
-        id: `ad_${c.id}`,
-        name: `${c.name} Ad Creative`,
-        campaignName: c.name,
-        adSetName: `${c.name} Ad Set`,
-        creative: { headline: "Boost Your Business Sales Today", body: "Connect with thousands of leads directly on WhatsApp." },
-        approvalStatus: "APPROVED",
-        status: "ACTIVE"
-      }]
+      : []
   );
 
   // Aggregate Metrics
@@ -515,11 +508,9 @@ function MetaAdsWorkspace({
   }
 
   const isMetaConnected = Boolean(
-    config?.accessToken ||
-    config?.appId ||
-    config?.adAccountId ||
-    accounts.length > 0 ||
-    campaigns.length > 0
+    config?.accessToken &&
+    config?.systemStatus !== "DISCONNECTED" &&
+    (config?.adAccountId || accounts.some((a: any) => a.isActive !== false))
   );
 
   if (!isMetaConnected) {
@@ -717,6 +708,21 @@ function MetaAdsWorkspace({
           >
             <Settings className="h-4 w-4 text-blue-600 shrink-0" />
             Meta Credentials
+          </button>
+
+          {/* Disconnect Meta Button */}
+          <button
+            onClick={handleDisconnectMeta}
+            disabled={isDisconnecting}
+            title="Disconnect Meta Ads account"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+          >
+            {isDisconnecting ? (
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+            ) : (
+              <LogOut className="h-4 w-4 shrink-0" />
+            )}
+            <span className="hidden sm:inline">{isDisconnecting ? "Disconnecting..." : "Disconnect"}</span>
           </button>
         </div>
       </header>
@@ -1179,7 +1185,7 @@ function MetaAdsWorkspace({
                 </p>
               </div>
               <button
-                onClick={fetchCampaigns}
+                onClick={() => { fetchCampaigns(); }}
                 className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs flex items-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="h-3.5 w-3.5" /> Re-Check Policy
@@ -1820,13 +1826,23 @@ export default function MetaAdsPage() {
   const [orgId, setOrgId] = useState<string>(getOrgId());
 
   useEffect(() => {
-    setOrgId(getOrgId());
+    const handleOrgSync = () => {
+      const activeOrg = getOrgId();
+      setOrgId(activeOrg);
+    };
+    handleOrgSync();
+    window.addEventListener("organization-switched", handleOrgSync);
+    window.addEventListener("storage", handleOrgSync);
+    return () => {
+      window.removeEventListener("organization-switched", handleOrgSync);
+      window.removeEventListener("storage", handleOrgSync);
+    };
   }, []);
 
   return (
     <Suspense fallback={<div className="flex items-center justify-center h-full bg-slate-50"><Loader2 className="h-8 w-8 text-blue-600 animate-spin" /></div>}>
       <SearchParamsHandler onOAuth={() => {}} />
-      <MetaAdsWorkspace orgId={orgId} showToast={() => { }} platform="meta" setPlatform={() => { }} />
+      <MetaAdsWorkspace key={orgId} orgId={orgId} showToast={() => { }} platform="meta" setPlatform={() => { }} />
     </Suspense>
   );
 }

@@ -136,21 +136,10 @@ export class MetaAdsService {
         data: {
           organizationId,
           appId: process.env.META_APP_ID || null,
-          accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
-          adAccountId: process.env.META_AD_ACCOUNT_ID || null,
-          pixelId: process.env.META_PIXEL_ID || null,
-          systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
-        },
-      });
-    } else if ((!config.accessToken && process.env.META_SYSTEM_USER_TOKEN) || (!config.pixelId && process.env.META_PIXEL_ID)) {
-      config = await prisma.metaAdConfig.update({
-        where: { organizationId },
-        data: {
-          appId: config.appId || process.env.META_APP_ID || null,
-          accessToken: config.accessToken || process.env.META_SYSTEM_USER_TOKEN,
-          adAccountId: config.adAccountId || process.env.META_AD_ACCOUNT_ID || null,
-          pixelId: config.pixelId || process.env.META_PIXEL_ID || null,
-          systemStatus: "CONNECTED",
+          accessToken: null,
+          adAccountId: null,
+          pixelId: null,
+          systemStatus: "DISCONNECTED",
         },
       });
     }
@@ -237,6 +226,15 @@ export class MetaAdsService {
     }
 
     return updated;
+  }
+
+  /**
+   * Clear cache for organization
+   */
+  static clearCache(organizationId: string) {
+    Object.keys(metaApiCache).forEach(k => {
+      if (k.startsWith(organizationId)) delete metaApiCache[k];
+    });
   }
 
   /**
@@ -405,25 +403,27 @@ export class MetaAdsService {
         if (id) accountMap.set(id, { ...acc, adAccountId: id });
       });
     } catch (err: any) {
-      // Fallback for System User Access Tokens under Business Portfolio
-      try {
-        const busResp = await axios.get(`${META_GRAPH_BASE}/1385886469956978/owned_ad_accounts`, {
-          params: {
-            fields: "id,name,account_status,currency,timezone_name",
-            access_token: config.accessToken,
-          },
-        });
-        (busResp.data?.data || []).forEach((acc: any) => {
-          const id = acc.id || acc.adAccountId;
-          if (id) accountMap.set(id, { ...acc, adAccountId: id });
-        });
-      } catch (bErr: any) {}
+      // Fallback for Business Portfolio if configured
+      if ((config as any).businessAccountId) {
+        try {
+          const busResp = await axios.get(`${META_GRAPH_BASE}/${(config as any).businessAccountId}/owned_ad_accounts`, {
+            params: {
+              fields: "id,name,account_status,currency,timezone_name",
+              access_token: config.accessToken,
+            },
+          });
+          (busResp.data?.data || []).forEach((acc: any) => {
+            const id = acc.id || acc.adAccountId;
+            if (id) accountMap.set(id, { ...acc, adAccountId: id });
+          });
+        } catch (bErr: any) {}
+      }
     }
 
-    // 3. Include any ad accounts recorded in Prisma DB
+    // 3. Include active ad accounts recorded in Prisma DB
     try {
       const dbAccounts = await prisma.metaAdAccount.findMany({
-        where: { organizationId },
+        where: { organizationId, isActive: true },
       });
       dbAccounts.forEach((acc: any) => {
         if (!accountMap.has(acc.adAccountId)) {
@@ -889,9 +889,13 @@ export class MetaAdsService {
   static async createCampaign(organizationId: string, payload: CreateMetaCampaignPayload) {
     const config = await this.getConfig(organizationId);
 
-    const formattedAccountId = config.adAccountId
-      ? (config.adAccountId.startsWith("act_") ? config.adAccountId : `act_${config.adAccountId}`)
-      : "act_demo_123456789";
+    if (!config.accessToken || !config.adAccountId) {
+      throw new Error("Meta Ads account not connected or authorization expired for this organization.");
+    }
+
+    const formattedAccountId = config.adAccountId.startsWith("act_") 
+      ? config.adAccountId 
+      : `act_${config.adAccountId}`;
 
     let metaCampaignId: string | null = null;
     let metaAdSetId: string | null = null;
@@ -1296,12 +1300,16 @@ export class MetaAdsService {
       }
     }
 
+    if (!metaCampaignId) {
+      throw new Error("Failed to create campaign on Meta: No campaign ID returned by Meta Graph API.");
+    }
+
     // Save record to local database with full parameters
     const dbCampaign = await prisma.metaAdCampaign.create({
       data: {
         organizationId,
         adAccountId: formattedAccountId,
-        metaCampaignId: metaCampaignId || `meta_camp_${Date.now()}`,
+        metaCampaignId,
         name: payload.name,
         objective: graphObjective,
         buyingType: payload.buyingType || "AUCTION",
@@ -1735,9 +1743,14 @@ export class MetaAdsService {
   /**
    * Fetch all campaigns for an organization
    */
-  static async getCampaigns(organizationId: string) {
+  static async getCampaigns(organizationId: string, adAccountId?: string) {
+    const whereClause: any = { organizationId };
+    if (adAccountId) {
+      const clean = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+      whereClause.adAccountId = clean;
+    }
     return prisma.metaAdCampaign.findMany({
-      where: { organizationId },
+      where: whereClause,
       include: {
         adSets: {
           include: {

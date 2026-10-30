@@ -38,10 +38,10 @@ export class MetaAdsCoreService {
             data: {
               organizationId,
               appId: process.env.META_APP_ID || null,
-              accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
-              adAccountId: process.env.META_AD_ACCOUNT_ID || null,
-              pixelId: process.env.META_PIXEL_ID || null,
-              systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
+              accessToken: null,
+              adAccountId: null,
+              pixelId: null,
+              systemStatus: "DISCONNECTED",
             },
           });
         }
@@ -52,28 +52,17 @@ export class MetaAdsCoreService {
           id: "temp_config",
           organizationId,
           appId: process.env.META_APP_ID || null,
-          accessToken: process.env.META_SYSTEM_USER_TOKEN || null,
-          adAccountId: process.env.META_AD_ACCOUNT_ID || null,
-          pixelId: process.env.META_PIXEL_ID || null,
+          accessToken: null,
+          adAccountId: null,
+          pixelId: null,
           pageId: null,
           instagramAccountId: null,
           businessAccountId: null,
-          systemStatus: process.env.META_SYSTEM_USER_TOKEN ? "CONNECTED" : "DISCONNECTED",
+          systemStatus: "DISCONNECTED",
           createdAt: new Date(),
           updatedAt: new Date(),
         } as any;
       }
-    } else if ((!config.accessToken && process.env.META_SYSTEM_USER_TOKEN) || (!config.pixelId && process.env.META_PIXEL_ID)) {
-      config = await prisma.metaAdConfig.update({
-        where: { organizationId },
-        data: {
-          appId: config.appId || process.env.META_APP_ID || null,
-          accessToken: config.accessToken || process.env.META_SYSTEM_USER_TOKEN,
-          adAccountId: config.adAccountId || process.env.META_AD_ACCOUNT_ID || null,
-          pixelId: config.pixelId || process.env.META_PIXEL_ID || null,
-          systemStatus: "CONNECTED",
-        },
-      });
     }
 
     return config!;

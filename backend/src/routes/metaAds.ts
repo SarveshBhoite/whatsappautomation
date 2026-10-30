@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import prisma from "../utils/prisma";
 import { MetaAdsService } from "../services/metaAdsService";
 import metaAdsSubRouter from "./meta-ads";
 
@@ -320,8 +321,9 @@ router.get("/search/languages", async (req: Request, res: Response) => {
  */
 router.get("/campaigns", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
-    const campaigns = await MetaAdsService.getCampaigns(orgId);
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const adAccountId = req.query.adAccountId as string | undefined;
+    const campaigns = await MetaAdsService.getCampaigns(orgId, adAccountId);
     res.json({ success: true, campaigns });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching campaigns:", error.message);
@@ -596,6 +598,41 @@ router.post("/sync", async (req: Request, res: Response) => {
     res.json({ success: true, result });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error syncing campaigns:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/disconnect
+ * Disconnect Meta integration for this organization
+ */
+router.post("/disconnect", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.body?.organizationId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    if (!orgId) return res.status(400).json({ success: false, error: "organizationId is required" });
+
+    await prisma.metaAdConfig.updateMany({
+      where: { organizationId: orgId },
+      data: {
+        accessToken: null,
+        adAccountId: null,
+        pageId: null,
+        instagramAccountId: null,
+        pixelId: null,
+        systemStatus: "DISCONNECTED",
+      },
+    });
+
+    await prisma.metaAdAccount.updateMany({
+      where: { organizationId: orgId },
+      data: { isActive: false },
+    });
+
+    MetaAdsService.clearCache(orgId);
+
+    res.json({ success: true, message: "Meta Ads disconnected successfully" });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error disconnecting Meta Ads:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
