@@ -198,8 +198,47 @@ router.get("/", async (req, res) => {
     const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
     const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
 
-    if (!clientId || !clientSecret || !config.googleRefreshToken || !config.googleLocationId) {
-      return res.status(400).json({ error: "Google Business account is not authorized or Location ID is not configured." });
+    if (!clientId || !clientSecret || !config.googleRefreshToken) {
+      return res.status(400).json({ error: "Google Business account is not authorized. Please connect via Google in Settings." });
+    }
+
+    // Auto-discover locationId if not yet populated on config
+    if (!config.googleLocationId) {
+      try {
+        const tokenForDiscovery = await getGoogleAccessToken(clientId, clientSecret, config.googleRefreshToken);
+        const accountsRes = await axios.get("https://mybusinessaccountmanagement.googleapis.com/v1/accounts", {
+          headers: { Authorization: "Bearer " + tokenForDiscovery }
+        });
+        const accounts = accountsRes.data.accounts || [];
+        for (const acc of accounts) {
+          const accId = acc.name.split("/")[1];
+          const locsRes = await axios.get("https://mybusinessbusinessinformation.googleapis.com/v1/" + acc.name + "/locations?readMask=name,title", {
+            headers: { Authorization: "Bearer " + tokenForDiscovery }
+          });
+          const locs = locsRes.data.locations || [];
+          if (locs.length > 0) {
+            const raw = locs[0].name;
+            const lId = raw.includes("/") ? raw.split("/").pop() : raw;
+            const fullLoc = "accounts/" + accId + "/locations/" + lId;
+            config = await (prisma as any).googleBusinessConfig.update({
+              where: { id: config.id },
+              data: {
+                googleLocationId: fullLoc,
+                locationName: locs[0].title || config.locationName
+              }
+            });
+            break;
+          }
+        }
+      } catch (discErr: any) {
+        console.warn("[GMB Performance] Could not auto-discover location ID on the fly:", discErr.message);
+      }
+    }
+
+    if (!config.googleLocationId) {
+      return res.status(400).json({ 
+        error: "Google Business account connected, but no verified GMB location found. Please ensure your Google account owns or manages a verified business location, or fetch locations in Settings." 
+      });
     }
 
     const numericLocationId = config.googleLocationId

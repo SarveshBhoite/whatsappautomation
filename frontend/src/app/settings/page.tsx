@@ -4,7 +4,11 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   MessageSquare, 
   GitMerge, 
-  Settings, 
+  Settings,
+  Menu,
+  X,
+  Globe,
+  Share2, 
   Send, 
   Bot, 
   User, 
@@ -402,7 +406,28 @@ export default function Dashboard() {
   });
   const [igSaveStatus, setIgSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [selectedPlatform, setSelectedPlatform] = useState<"whatsapp" | "instagram" | "youtube">("whatsapp");
-  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "google" | "youtube" | "api-keys">("whatsapp");
+  const [settingsSubTab, setSettingsSubTab] = useState<"whatsapp" | "instagram" | "gmb" | "reviews" | "gmail" | "google-ads" | "meta-ads" | "linkedin" | "youtube" | "api-keys">("whatsapp");
+  const [mobileSettingsMenuOpen, setMobileSettingsMenuOpen] = useState(false);
+
+  // GMB Multi-Location & Location Discovery State
+  const [gmbAccountsList, setGmbAccountsList] = useState<any[]>([]);
+  const [selectedGmbLocId, setSelectedGmbLocId] = useState<string>("");
+  const [isDiscoveringLocations, setIsDiscoveringLocations] = useState(false);
+  const [locationDiscoveryMsg, setLocationDiscoveryMsg] = useState<string | null>(null);
+
+  // Google Ads State in Settings
+  const [googleAdsAccountsList, setGoogleAdsAccountsList] = useState<any[]>([]);
+  const [selectedGoogleAdsCid, setSelectedGoogleAdsCid] = useState<string>("");
+  const [loadingGoogleAds, setLoadingGoogleAds] = useState(false);
+
+  // Meta Ads State in Settings
+  const [metaAdsConfig, setMetaAdsConfig] = useState<any>(null);
+  const [metaAdAccountsList, setMetaAdAccountsList] = useState<any[]>([]);
+  const [loadingMetaAds, setLoadingMetaAds] = useState(false);
+
+  // LinkedIn State in Settings
+  const [linkedInConfig, setLinkedInConfig] = useState<any>(null);
+  const [loadingLinkedIn, setLoadingLinkedIn] = useState(false);
 
   // Instagram Permissions & App Review Compliance States
   const [showIgPermInspector, setShowIgPermInspector] = useState(false);
@@ -484,9 +509,13 @@ export default function Dashboard() {
       const tab = params.get("tab");
       if (tab === "chats_whatsapp" || tab === "chats_instagram" || tab === "flows" || tab === "settings") {
         setActiveTab(tab as any);
-      } else if (tab === "instagram" || tab === "whatsapp" || tab === "google" || tab === "youtube" || tab === "api-keys") {
+      } else if (["instagram", "whatsapp", "gmb", "reviews", "gmail", "google-ads", "meta-ads", "linkedin", "youtube", "api-keys", "google"].includes(tab || "")) {
         setActiveTab("settings");
-        setSettingsSubTab(tab as any);
+        if (tab === "google") {
+          setSettingsSubTab("gmb");
+        } else {
+          setSettingsSubTab(tab as any);
+        }
       }
 
       const oauth = params.get("oauth");
@@ -498,7 +527,7 @@ export default function Dashboard() {
           fetchYoutubeConfig();
           setTimeout(() => setYtOauthStatus("idle"), 3000);
         } else {
-          setSettingsSubTab("google");
+          setSettingsSubTab("gmb");
           setGoogleOauthStatus("success");
           fetchGoogleConfig();
           fetchGmailAccounts();
@@ -511,7 +540,7 @@ export default function Dashboard() {
           setYtOauthStatus("error");
           setTimeout(() => setYtOauthStatus("idle"), 3000);
         } else {
-          setSettingsSubTab("google");
+          setSettingsSubTab("gmb");
           setGoogleOauthStatus("error");
           setTimeout(() => setGoogleOauthStatus("idle"), 3000);
         }
@@ -534,9 +563,17 @@ export default function Dashboard() {
   useEffect(() => {
     if (settingsSubTab === "youtube") {
       fetchYoutubeConfig();
-    } else if (settingsSubTab === "google") {
+    } else if (settingsSubTab === "gmb" || settingsSubTab === "reviews") {
       fetchGoogleConfig();
+      fetchGmbAccountsList();
+    } else if (settingsSubTab === "gmail") {
       fetchGmailAccounts();
+    } else if (settingsSubTab === "google-ads") {
+      fetchGoogleAdsAccounts();
+    } else if (settingsSubTab === "meta-ads") {
+      fetchMetaAdsSettings();
+    } else if (settingsSubTab === "linkedin") {
+      fetchLinkedInSettings();
     } else if (settingsSubTab === "instagram") {
       fetchInstagramConfig();
       fetchIgAccounts();
@@ -545,6 +582,30 @@ export default function Dashboard() {
       fetchWaAccounts();
     }
   }, [settingsSubTab]);
+
+  // Sync listener for organization switches across the application
+  useEffect(() => {
+    const handleOrgChange = () => {
+      fetchConfig();
+      fetchWaAccounts();
+      fetchInstagramConfig();
+      fetchIgAccounts();
+      fetchGoogleConfig();
+      fetchGmbAccountsList();
+      fetchGmailAccounts();
+      fetchYoutubeConfig();
+      fetchGoogleAdsAccounts();
+      fetchMetaAdsSettings();
+      fetchLinkedInSettings();
+    };
+
+    window.addEventListener("organization-switched", handleOrgChange);
+    window.addEventListener("storage", handleOrgChange);
+    return () => {
+      window.removeEventListener("organization-switched", handleOrgChange);
+      window.removeEventListener("storage", handleOrgChange);
+    };
+  }, []);
 
   const fetchTelemetryLogs = async () => {
     try {
@@ -2341,21 +2402,38 @@ print(res.json())`;
       const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${getOrgId()}`);
       if (res.ok) {
         const data = await res.json();
-        setGoogleConfig(data);
-
-        // Parse Google location path into split fields
-        let accountId = "";
-        let locationId = data.googleLocationId || "";
-        if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
-          const parts = locationId.split("/");
-          accountId = parts[1] || "";
-          locationId = parts[3] || "";
-        } else if (locationId.includes("locations/")) {
-          locationId = locationId.replace("locations/", "");
+        if (data) {
+          setGoogleConfig(data);
+          let accountId = "";
+          let locationId = data.googleLocationId || "";
+          if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
+            const parts = locationId.split("/");
+            accountId = parts[1] || "";
+            locationId = parts[3] || "";
+          } else if (locationId.includes("locations/")) {
+            locationId = locationId.replace("locations/", "");
+          }
+          setFormGoogleAccountId(accountId);
+          setFormGoogleLocationId(locationId);
+          setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
+        } else {
+          setGoogleConfig({
+            locationName: "",
+            googlePlaceId: "",
+            googleReviewUrl: "",
+            googleLocationId: "",
+            googleClientId: "",
+            googleClientSecret: "",
+            googleRefreshToken: "",
+            googleAdsCustomerId: "",
+            autoReplyEnabled: false,
+            autoReplyMinRating: 4,
+            autoReplyTemplate: "",
+          });
+          setFormGoogleAccountId("");
+          setFormGoogleLocationId("");
+          setFormGoogleAdsCustomerId("");
         }
-        setFormGoogleAccountId(accountId);
-        setFormGoogleLocationId(locationId);
-        setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
       }
     } catch (err) {
       console.error("Error fetching Google GMB config:", err);
@@ -2415,6 +2493,198 @@ print(res.json())`;
     }
   };
 
+  // -------------------------------------------------------------
+  // CHANNEL SETTINGS HELPER FUNCTIONS (STRICTLY ORG-SCOPED)
+  // -------------------------------------------------------------
+  const fetchGmbAccountsList = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/accounts?orgId=${encodeURIComponent(getOrgId())}`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.accounts || [];
+        setGmbAccountsList(list);
+        const active = list.find((a: any) => a.isDefault) || list[0];
+        if (active) setSelectedGmbLocId(active.id);
+      }
+    } catch (err) {
+      console.warn("Error fetching GMB accounts list:", err);
+    }
+  };
+
+  const handleDiscoverLocations = async () => {
+    setIsDiscoveringLocations(true);
+    setLocationDiscoveryMsg(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/gmb/discover-locations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ orgId: getOrgId() })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLocationDiscoveryMsg(`✓ Discovered ${data.discoveredCount || 0} location(s) from your Google Business Profile!`);
+        await fetchGmbAccountsList();
+        await fetchGoogleConfig();
+      } else {
+        setLocationDiscoveryMsg(`⚠ ${data.message || data.error || "Location discovery failed. Please ensure Google OAuth is complete."}`);
+      }
+    } catch (err: any) {
+      setLocationDiscoveryMsg(`Discovery Error: ${err.message}`);
+    } finally {
+      setIsDiscoveringLocations(false);
+    }
+  };
+
+  const setDefaultGmbAccount = async (accountId: string) => {
+    try {
+      setSelectedGmbLocId(accountId);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/set-default`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId, orgId: getOrgId() })
+      });
+      if (res.ok) {
+        await fetchGmbAccountsList();
+        await fetchGoogleConfig();
+      }
+    } catch (err) {
+      console.warn("Error setting default GMB location:", err);
+    }
+  };
+
+  const fetchGoogleAdsAccounts = async () => {
+    try {
+      setLoadingGoogleAds(true);
+      const res = await fetch(`${BACKEND_URL}/api/ads/accounts?orgId=${encodeURIComponent(getOrgId())}`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = data.accounts || [];
+        setGoogleAdsAccountsList(list);
+        const active = list.find((a: any) => a.isDefault || a.isActive) || list[0];
+        if (active) setSelectedGoogleAdsCid(active.customerId);
+      }
+    } catch (err) {
+      console.warn("Error fetching Google Ads accounts in settings:", err);
+    } finally {
+      setLoadingGoogleAds(false);
+    }
+  };
+
+  const handleDisconnectGoogleAds = async (cid?: string) => {
+    if (!confirm("Are you sure you want to disconnect this Google Ads customer account?")) return;
+    try {
+      const targetCid = cid || selectedGoogleAdsCid;
+      const res = await fetch(`${BACKEND_URL}/api/ads/accounts/${targetCid}?orgId=${encodeURIComponent(getOrgId())}`, {
+        method: "DELETE",
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        alert("Google Ads account disconnected successfully.");
+        fetchGoogleAdsAccounts();
+      } else {
+        alert("Failed to disconnect Google Ads account.");
+      }
+    } catch (err: any) {
+      alert(`Disconnect error: ${err.message}`);
+    }
+  };
+
+  const fetchMetaAdsSettings = async () => {
+    try {
+      setLoadingMetaAds(true);
+      const [cfgRes, accRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/meta-ads/config?organizationId=${encodeURIComponent(getOrgId())}`, {
+          headers: { "x-organization-id": getOrgId() }
+        }),
+        fetch(`${BACKEND_URL}/api/meta-ads/accounts?organizationId=${encodeURIComponent(getOrgId())}`, {
+          headers: { "x-organization-id": getOrgId() }
+        })
+      ]);
+      if (cfgRes.ok) {
+        const cfg = await cfgRes.json();
+        setMetaAdsConfig(cfg);
+      }
+      if (accRes.ok) {
+        const accData = await accRes.json();
+        setMetaAdAccountsList(accData.accounts || []);
+      }
+    } catch (err) {
+      console.warn("Error fetching Meta Ads in settings:", err);
+    } finally {
+      setLoadingMetaAds(false);
+    }
+  };
+
+  const handleDisconnectMetaAds = async () => {
+    if (!confirm("Are you sure you want to disconnect Meta Ads from this organization?")) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/meta-ads/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        }
+      });
+      if (res.ok) {
+        alert("Meta Ads disconnected successfully.");
+        setMetaAdsConfig(null);
+        setMetaAdAccountsList([]);
+      } else {
+        alert("Failed to disconnect Meta Ads.");
+      }
+    } catch (err: any) {
+      alert(`Disconnect error: ${err.message}`);
+    }
+  };
+
+  const fetchLinkedInSettings = async () => {
+    try {
+      setLoadingLinkedIn(true);
+      const res = await fetch(`${BACKEND_URL}/api/linkedin/config?organizationId=${encodeURIComponent(getOrgId())}`, {
+        headers: { "x-organization-id": getOrgId() }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLinkedInConfig(data);
+      }
+    } catch (err) {
+      console.warn("Error fetching LinkedIn settings:", err);
+    } finally {
+      setLoadingLinkedIn(false);
+    }
+  };
+
+  const handleDisconnectLinkedIn = async () => {
+    if (!confirm("Are you sure you want to disconnect your LinkedIn account from this organization?")) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/linkedin/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        }
+      });
+      if (res.ok) {
+        alert("LinkedIn account disconnected successfully.");
+        setLinkedInConfig(null);
+      } else {
+        alert("Failed to disconnect LinkedIn account.");
+      }
+    } catch (err: any) {
+      alert(`Disconnect error: ${err.message}`);
+    }
+  };
+
   const handleGoogleOAuthConnect = () => {
     setGoogleOauthStatus("connecting");
     if (typeof window !== "undefined") {
@@ -2422,8 +2692,8 @@ print(res.json())`;
     }
   };
 
-  const handleDisconnectGoogle = async () => {
-    if (!confirm("Are you sure you want to disconnect Google Business Profile? Automated review monitoring will be stopped.")) return;
+  const handleDisconnectGoogle = async (accountId?: string) => {
+    if (!confirm("Are you sure you want to disconnect this Google Business location? Automated review monitoring will be stopped.")) return;
     try {
       setGoogleOauthStatus("connecting");
       const res = await fetch(`${BACKEND_URL}/api/gmb/disconnect`, {
@@ -2432,10 +2702,10 @@ print(res.json())`;
           "Content-Type": "application/json",
           "x-organization-id": getOrgId(),
         },
-        body: JSON.stringify({ orgId: getOrgId() })
+        body: JSON.stringify({ orgId: getOrgId(), accountId })
       });
       if (res.ok) {
-        alert("✓ Google Business profile disconnected successfully.");
+        alert("✓ Google Business location disconnected and removed successfully.");
         setGoogleConfig(prev => ({
           ...prev,
           googleRefreshToken: "",
@@ -2443,7 +2713,8 @@ print(res.json())`;
           googlePlaceId: "",
           googleReviewUrl: ""
         }));
-        fetchGoogleConfig();
+        await fetchGoogleConfig();
+        await fetchGmbAccountsList();
       } else {
         alert("Failed to disconnect Google Business profile.");
       }
@@ -3590,68 +3861,205 @@ print(res.json())`;
 
         {/* TAB 3: SETTINGS & ONBOARDING */}
         {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto p-8 w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-slate-200 pb-4">
-              <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-                <Settings className="h-6 w-6 text-emerald-600" /> Settings & Integrations
-              </h2>
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 w-full">
+            {/* Mobile Navigation Drawer Backdrop */}
+            {mobileSettingsMenuOpen && (
+              <div
+                onClick={() => setMobileSettingsMenuOpen(false)}
+                className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 md:hidden animate-fadeIn"
+              />
+            )}
+
+            {/* Mobile Slide-out Drawer Menu */}
+            <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 shadow-2xl flex flex-col justify-between p-5 transform transition-transform duration-300 ease-in-out md:hidden ${
+              mobileSettingsMenuOpen ? "translate-x-0" : "-translate-x-full"
+            }`}>
+              <div className="flex flex-col gap-5 overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-9 w-9 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-xs">
+                      <Settings className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <span className="font-extrabold text-sm text-slate-900 tracking-tight">Integrations</span>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Channel Settings</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMobileSettingsMenuOpen(false)}
+                    className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-500 cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-1">Channels</span>
+                  {[
+                    { id: "whatsapp", label: "WhatsApp Setup", icon: WhatsApp, color: "text-emerald-600", activeBg: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+                    { id: "instagram", label: "Instagram Setup", icon: Instagram, color: "text-pink-600", activeBg: "bg-pink-50 text-pink-800 border-pink-200" },
+                    { id: "gmb", label: "Google Business (GMB)", icon: Store, color: "text-amber-600", activeBg: "bg-amber-50 text-amber-800 border-amber-200" },
+                    { id: "reviews", label: "Google Reviews & QR", icon: Star, color: "text-amber-500", activeBg: "bg-amber-50 text-amber-800 border-amber-200" },
+                    { id: "gmail", label: "Gmail Auto-Reply", icon: Mail, color: "text-rose-600", activeBg: "bg-rose-50 text-rose-800 border-rose-200" },
+                    { id: "google-ads", label: "Google Ads Workspace", icon: Activity, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200" },
+                    { id: "meta-ads", label: "Meta Ads Manager", icon: Globe, color: "text-blue-600", activeBg: "bg-blue-50 text-blue-800 border-blue-200" },
+                    { id: "linkedin", label: "LinkedIn Publishing", icon: Share2, color: "text-sky-600", activeBg: "bg-sky-50 text-sky-800 border-sky-200" },
+                    { id: "youtube", label: "YouTube Comments", icon: Video, color: "text-red-600", activeBg: "bg-red-50 text-red-800 border-red-200" },
+                    { id: "api-keys", label: "API Keys & Developer", icon: Key, color: "text-indigo-600", activeBg: "bg-indigo-50 text-indigo-800 border-indigo-200" },
+                  ].map(tab => {
+                    const Icon = tab.icon;
+                    const isSelected = settingsSubTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setSettingsSubTab(tab.id as any);
+                          setMobileSettingsMenuOpen(false);
+                        }}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                          isSelected ? `${tab.activeBg} border shadow-xs` : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 shrink-0 ${tab.color}`} />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </aside>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMobileSettingsMenuOpen(true)}
+                  className="md:hidden p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs shrink-0 cursor-pointer"
+                  title="Open Channels Menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-2 sm:gap-3 tracking-tight">
+                    <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-emerald-600" /> Settings & Integrations
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">Manage organization connections, authorized channels, and developer credentials.</p>
+                </div>
+              </div>
               
-              {/* Secondary sub-tabs selector */}
-              <div className="flex flex-wrap bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 self-start lg:self-auto shadow-inner gap-1 max-w-full overflow-x-auto">
+              {/* Secondary sub-tabs selector - Completely Modular Integrations Hub */}
+              <div className="hidden md:flex flex-wrap bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 self-start lg:self-auto shadow-inner gap-1 max-w-full overflow-x-auto">
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("whatsapp")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
                     settingsSubTab === "whatsapp"
                       ? "bg-white text-emerald-700 shadow-md border border-slate-200/90"
                       : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                   }`}
                 >
-                  <WhatsApp className="h-4 w-4 text-emerald-600" /> WhatsApp Setup
+                  <WhatsApp className="h-4 w-4 text-emerald-600" /> WhatsApp
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("instagram")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
                     settingsSubTab === "instagram"
                       ? "bg-white text-pink-700 shadow-md border border-slate-200/90"
                       : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                   }`}
                 >
-                  <Instagram className="h-4 w-4 text-pink-600" /> Instagram Setup
+                  <Instagram className="h-4 w-4 text-pink-600" /> Instagram
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSettingsSubTab("google")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
-                    settingsSubTab === "google"
+                  onClick={() => setSettingsSubTab("gmb")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "gmb"
+                      ? "bg-white text-amber-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <Store className="h-4 w-4 text-amber-600" /> Google Business (GMB)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("reviews")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "reviews"
+                      ? "bg-white text-amber-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <Star className="h-4 w-4 text-amber-500 fill-amber-400" /> Google Reviews
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("gmail")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "gmail"
+                      ? "bg-white text-rose-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <Mail className="h-4 w-4 text-rose-600" /> Gmail
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("google-ads")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "google-ads"
                       ? "bg-white text-blue-700 shadow-md border border-slate-200/90"
                       : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                   }`}
                 >
-                  <Star className="h-4 w-4 text-amber-500 fill-amber-400" /> Google Setup
+                  <Activity className="h-4 w-4 text-blue-600" /> Google Ads
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("meta-ads")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "meta-ads"
+                      ? "bg-white text-blue-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <Globe className="h-4 w-4 text-blue-600" /> Meta Ads
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsSubTab("linkedin")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
+                    settingsSubTab === "linkedin"
+                      ? "bg-white text-sky-700 shadow-md border border-slate-200/90"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
+                >
+                  <Share2 className="h-4 w-4 text-sky-600" /> LinkedIn
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("youtube")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
                     settingsSubTab === "youtube"
                       ? "bg-white text-red-700 shadow-md border border-slate-200/90"
                       : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                   }`}
                 >
-                  <Video className="h-4 w-4 text-red-600" /> YouTube Setup
+                  <Video className="h-4 w-4 text-red-600" /> YouTube
                 </button>
                 <button
                   type="button"
                   onClick={() => setSettingsSubTab("api-keys")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all duration-200 cursor-pointer ${
                     settingsSubTab === "api-keys"
                       ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
                       : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                   }`}
                 >
-                  <Key className="h-4 w-4" /> API Keys & Developer
+                  <Key className="h-4 w-4" /> API Keys
                 </button>
               </div>
             </div>
@@ -5053,252 +5461,460 @@ print(res.json())`;
                       </div>
                     </div>
                   </>
-                ) : settingsSubTab === "google" ? (
-                  <>
-                    {/* Official Google Business & Gmail Embedded Signup Card */}
-                    <div className="bg-gradient-to-br from-amber-50 via-white to-blue-50 border border-amber-200 rounded-2xl p-6 space-y-4 shadow-2xs relative overflow-hidden animate-fadeIn">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
-                            <Star className="h-6 w-6 text-amber-500 fill-amber-400" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-extrabold text-base text-slate-900">Google Business & Gmail Embedded Signup</h3>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase">
-                                OFFICIAL GOOGLE PROVIDER
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              Connect your Google Business Profile & Gmail accounts with 1-click Google OAuth to monitor reviews and automate customer interactions.
-                            </p>
-                          </div>
-                        </div>
+) : settingsSubTab === "gmb" ? (
+  <>
+    {/* GOOGLE BUSINESS PROFILE (GMB) INTEGRATION CARD */}
+    <div className="bg-gradient-to-br from-amber-50 via-white to-orange-50 border border-amber-200 rounded-2xl p-6 space-y-5 shadow-2xs relative overflow-hidden animate-fadeIn">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
+            <Store className="h-6 w-6 text-amber-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-slate-900">Google Business Profile (GMB) Integration</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase">
+                OFFICIAL GMB API
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Connect your Google Business Profile to publish posts, sync business information, and inspect Google Maps presence for your active organization.
+            </p>
+          </div>
+        </div>
 
-                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={handleGoogleOAuthConnect}
-                            disabled={googleOauthStatus === "connecting"}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
-                          >
-                            <RefreshCw className={`h-4 w-4 ${googleOauthStatus === "connecting" ? "animate-spin" : ""}`} />
-                            <span>{googleOauthStatus === "connecting" ? "Connecting via Google..." : googleConfig.googleRefreshToken ? "Reconnect Google Account" : "Connect with Google"}</span>
-                          </button>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/settings?tab=gmb&source=gmb`;
+              }
+            }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>{googleConfig?.googleRefreshToken ? "Reconnect Google Account" : "Connect GMB with Google"}</span>
+          </button>
+          {googleConfig?.googleRefreshToken && (
+            <button
+              type="button"
+              onClick={() => handleDisconnectGoogle()}
+              className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+            >
+              Disconnect
+            </button>
+          )}
+        </div>
+      </div>
 
-                          {googleConfig.googleRefreshToken && (
-                            <button
-                              type="button"
-                              onClick={handleDisconnectGoogle}
-                              disabled={googleOauthStatus === "connecting"}
-                              className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                            >
-                              Disconnect
-                            </button>
-                          )}
-                        </div>
-                      </div>
+      {/* Location Auto-Discovery Banner & Trigger */}
+      <div className="bg-white/80 border border-amber-200/90 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="space-y-1">
+          <div className="font-extrabold text-slate-900 flex items-center gap-2">
+            <RefreshCw className={`w-3.5 h-3.5 text-amber-600 ${isDiscoveringLocations ? "animate-spin" : ""}`} />
+            <span>Dynamic Location Fetching & Google Account Sync</span>
+          </div>
+          <p className="text-[11px] text-slate-500">Fetch all business listings, branch stores, and verified locations directly from your authorized Google Business account.</p>
+          {locationDiscoveryMsg && (
+            <div className="text-[11px] font-bold text-emerald-700 mt-1">{locationDiscoveryMsg}</div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={handleDiscoverLocations}
+          disabled={isDiscoveringLocations}
+          className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer shrink-0"
+        >
+          {isDiscoveringLocations ? "Fetching Locations..." : "Fetch Locations Now"}
+        </button>
+      </div>
 
-                      {googleConfig.googleRefreshToken && (
-                        <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 text-xs">
-                          <div className="flex items-center gap-2 text-amber-800 font-bold">
-                            <Check className="h-4.5 w-4.5 text-amber-600" />
-                            <span>Status: Connected to Google Business API & Review Auto-Pilot</span>
-                          </div>
-                          <div className="flex items-center gap-3 text-slate-700 font-mono text-[11px]">
-                            {googleConfig.locationName && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Location: <strong className="text-slate-900">{googleConfig.locationName}</strong></span>}
-                            {googleConfig.googleLocationId && <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">Location ID: <strong className="text-slate-900">{googleConfig.googleLocationId}</strong></span>}
-                          </div>
-                        </div>
-                      )}
+      {/* Discovered / Linked Locations List */}
+      <div className="space-y-3 pt-2">
+        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+          <Store className="w-4 h-4 text-amber-600" /> Active GMB Locations ({gmbAccountsList.length})
+        </h4>
+        {gmbAccountsList.length === 0 ? (
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+            No GMB locations discovered yet. Connect your Google account above or click <strong>"Fetch Locations Now"</strong>.
+          </div>
+        ) : (
+          gmbAccountsList.map((loc) => {
+            const isSelected = loc.id === selectedGmbLocId || loc.isDefault;
+            return (
+              <div key={loc.id} className={`flex items-center justify-between p-4 border rounded-2xl text-xs transition-all ${isSelected ? "bg-amber-50/70 border-amber-300 shadow-2xs" : "bg-white border-slate-200 hover:border-amber-200"}`}>
+                <div className="space-y-1">
+                  <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <span>{loc.locationName || "Google Business Location"}</span>
+                    {loc.isDefault && <span className="px-2 py-0.5 text-[10px] font-extrabold text-amber-800 bg-amber-100 rounded-full border border-amber-200">Primary Location</span>}
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono">Location ID: {loc.googleLocationId || loc.locationId || "Auto-assigned"}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!loc.isDefault ? (
+                    <button type="button" onClick={() => setDefaultGmbAccount(loc.id)} className="px-3.5 py-1.5 bg-white hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 hover:border-amber-300 font-bold text-xs rounded-xl transition-all cursor-pointer">
+                      Set Primary
+                    </button>
+                  ) : (
+                    <span className="px-3 py-1 bg-amber-100 text-amber-800 font-bold text-xs rounded-xl flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Active</span>
+                  )}
+                  <button type="button" onClick={() => handleDisconnectGoogle(loc.id)} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer">
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
 
-                      {/* Linked Gmail Accounts List */}
-                      <div className="mt-5 pt-5 border-t border-amber-200/90 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                              <Mail className="w-4 h-4 text-rose-500" /> Linked Gmail & Google Accounts ({gmailAccounts.length})
-                            </h4>
-                            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Switch active primary Gmail account or connect additional Google accounts to your workspace.</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleGoogleOAuthConnect}
-                            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-blue-600/20 cursor-pointer flex items-center gap-1.5"
-                          >
-                            <Plus className="w-4 h-4 stroke-[2.5]" />
-                            Link Additional Account
-                          </button>
-                        </div>
+    {/* Manual Fallback & GMB Config Form */}
+    <form onSubmit={saveGoogleConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
+      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
+        <Store className="h-4.5 w-4.5 text-amber-600" /> Manual Location Parameters (Optional Override)
+      </h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-slate-700 font-semibold">Location / Business Title</label>
+          <input type="text" value={googleConfig?.locationName || ""} onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })} placeholder="e.g. Jisnu Digitals Pune" className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-slate-700 font-semibold">Google Business Location ID</label>
+          <input type="text" value={formGoogleLocationId} onChange={(e) => setFormGoogleLocationId(e.target.value)} placeholder="e.g. accounts/102.../locations/151..." className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-mono text-xs placeholder-slate-400 focus:outline-none focus:border-brand-blue" />
+        </div>
+      </div>
+      <div className="pt-2 flex items-center justify-between">
+        <button type="submit" disabled={googleSaveStatus === "saving"} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer">
+          <Save className="h-4 w-4" />
+          {googleSaveStatus === "saving" ? "Saving..." : "Save GMB Settings"}
+        </button>
+      </div>
+    </form>
+  </>
+) : settingsSubTab === "reviews" ? (
+  <>
+    {/* GOOGLE REVIEWS & QR CODE CONFIGURATION CARD */}
+    <div className="bg-gradient-to-br from-amber-50 via-white to-yellow-50 border border-amber-200 rounded-2xl p-6 space-y-5 shadow-2xs relative overflow-hidden animate-fadeIn">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0">
+            <Star className="h-6 w-6 text-amber-500 fill-amber-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-slate-900">Google Reviews & QR Generator Setup</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 uppercase">
+                ORGANIZATION-LINKED
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Configure your Place ID and review link. Each active location dynamically updates the QR code on the Reviews page for instant customer review posting.
+            </p>
+          </div>
+        </div>
+        <Link href="/reviews" className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+          <span>Open Live Reviews Dashboard</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </Link>
+      </div>
 
-                        <div className="space-y-2.5">
-                          {gmailAccounts.length === 0 ? (
-                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
-                              No Gmail accounts linked yet. Click <strong>"Link Additional Account"</strong> or <strong>"Connect with Google"</strong> to add your first Google account.
-                            </div>
-                          ) : (
-                            gmailAccounts.map((acc) => {
-                              const isTokenValid = acc.isTokenValid !== false;
-                              return (
-                                <div key={acc.id} className={`flex items-center justify-between p-4 border rounded-2xl text-xs transition-all ${
-                                  !isTokenValid 
-                                    ? "bg-rose-50/50 border-rose-300"
-                                    : acc.isDefault
-                                    ? "bg-gradient-to-r from-rose-50/80 to-pink-50/40 border-rose-300 shadow-2xs"
-                                    : "bg-white border-slate-200 hover:border-rose-200"
-                                }`}>
-                                  <div className="flex items-center gap-3.5">
-                                    <div className="relative p-2.5 rounded-xl bg-rose-50 text-rose-600 border border-rose-100/80">
-                                      <Mail className="w-5 h-5" />
-                                    </div>
-                                    <div className="space-y-0.5">
-                                      <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                                        <span>{acc.emailAddress || "Connected Gmail Account"}</span>
-                                        {acc.isDefault && (
-                                          <span className="px-2.5 py-0.5 text-[10px] font-extrabold text-rose-800 bg-rose-100 rounded-full border border-rose-200/80">
-                                            Primary Email
-                                          </span>
-                                        )}
-                                        {!isTokenValid && (
-                                          <span className="px-2 py-0.5 text-[10px] font-extrabold text-rose-700 bg-rose-100 rounded-full border border-rose-300">
-                                            ⚠ Reconnect Needed
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="text-[11px] text-slate-500 font-mono">Display Name: {acc.displayName || acc.emailAddress?.split("@")[0]}</div>
-                                    </div>
-                                  </div>
+      <form onSubmit={saveGoogleConfig} className="bg-white border border-amber-200/80 rounded-2xl p-5 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-700 font-semibold">Google Place ID (Direct Map Pin)</label>
+            <input type="text" value={googleConfig?.googlePlaceId || ""} onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })} placeholder="e.g. ChIJK7R7jG-5wjsR..." className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 font-mono text-xs placeholder-slate-400 focus:outline-none focus:border-brand-blue" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-700 font-semibold">Live Review Direct Posting URL</label>
+            <input type="text" value={googleConfig?.googleReviewUrl || ""} onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })} placeholder="e.g. https://search.google.com/local/writereview?placeid=..." className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue" />
+          </div>
+        </div>
 
-                                  <div className="flex items-center gap-2">
-                                    {!acc.isDefault ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => setDefaultGmailAccount(acc.id)}
-                                        className="px-3.5 py-1.5 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
-                                      >
-                                        Set Primary
-                                      </button>
-                                    ) : (
-                                      <span className="px-3 py-1 bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl flex items-center gap-1.5">
-                                        <Check className="w-3.5 h-3.5 stroke-[3]" /> Primary
-                                      </span>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        if (confirm(`Disconnect ${acc.emailAddress}?`)) {
-                                          await fetch(`${BACKEND_URL}/api/gmail/disconnect`, {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json", "x-organization-id": getOrgId() },
-                                            body: JSON.stringify({ accountId: acc.id })
-                                          });
-                                          fetchGmailAccounts();
-                                        }
-                                      }}
-                                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                                    >
-                                      Disconnect
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-                    </div>
+        <div className="border-t border-slate-100 pt-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-xs font-bold text-slate-900">AI Auto-Reply to New Reviews</label>
+              <p className="text-[11px] text-slate-500">Automatically post replies to customer reviews matching the minimum star rating.</p>
+            </div>
+            <input type="checkbox" checked={Boolean(googleConfig?.autoReplyEnabled)} onChange={(e) => setGoogleConfig({ ...googleConfig, autoReplyEnabled: e.target.checked })} className="h-4 w-4 text-amber-600 rounded cursor-pointer" />
+          </div>
+          {Boolean(googleConfig?.autoReplyEnabled) && (
+            <div className="space-y-2 pt-2">
+              <label className="text-xs text-slate-700 font-semibold">Default Reply Template</label>
+              <textarea rows={2} value={googleConfig?.autoReplyTemplate || ""} onChange={(e) => setGoogleConfig({ ...googleConfig, autoReplyTemplate: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-900 focus:outline-none focus:border-brand-blue" />
+            </div>
+          )}
+        </div>
 
-                    {/* Google GMB Credentials Form */}
-                    <form onSubmit={saveGoogleConfig} className="bg-white border border-slate-200/90 rounded-2xl p-6 space-y-4 shadow-2xs animate-fadeIn">
-                      <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
-                        <Star className="h-4.5 w-4.5 text-amber-500" /> Google Business Configuration
-                      </h3>
+        <div className="pt-2">
+          <button type="submit" disabled={googleSaveStatus === "saving"} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer">
+            <Save className="h-4 w-4" />
+            {googleSaveStatus === "saving" ? "Saving..." : "Save Review Settings"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </>
+) : settingsSubTab === "gmail" ? (
+  <>
+    {/* GMAIL MULTI-ACCOUNT INTEGRATION CARD */}
+    <div className="bg-gradient-to-br from-rose-50 via-white to-pink-50 border border-rose-200 rounded-2xl p-6 space-y-5 shadow-2xs relative overflow-hidden animate-fadeIn">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-700 shrink-0">
+            <Mail className="h-6 w-6 text-rose-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-slate-900">Gmail Auto-Pilot & Inbox Sync</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 uppercase">
+                OFFICIAL GMAIL API
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Connect business Gmail accounts to automate outreach, send transaction emails, and monitor responses inside this organization.
+            </p>
+          </div>
+        </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-700 font-semibold">Location / Business Name</label>
-                          <input
-                            type="text"
-                            value={googleConfig.locationName || ""}
-                            onChange={(e) => setGoogleConfig({ ...googleConfig, locationName: e.target.value })}
-                            placeholder="e.g. Jisnu Digitals Pune"
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
-                          />
-                        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              window.location.href = `${BACKEND_URL}/api/gmail/oauth/connect?orgId=${getOrgId()}&redirect=/settings?tab=gmail`;
+            }
+          }}
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+        >
+          <Plus className="w-4 h-4 stroke-[2.5]" />
+          <span>Connect Gmail Account</span>
+        </button>
+      </div>
 
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-700 font-semibold">Google Place ID (Link redirection)</label>
-                          <input
-                            type="text"
-                            value={googleConfig.googlePlaceId || ""}
-                            onChange={(e) => setGoogleConfig({ ...googleConfig, googlePlaceId: e.target.value })}
-                            placeholder="e.g. ChIJK7R7jG-5wjsR..."
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
-                          />
-                        </div>
-                      </div>
+      {/* Linked Gmail Accounts List */}
+      <div className="space-y-3 pt-2">
+        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+          <Mail className="w-4 h-4 text-rose-600" /> Connected Gmail Inboxes ({gmailAccounts.length})
+        </h4>
+        {gmailAccounts.length === 0 ? (
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+            No Gmail accounts connected yet. Click <strong>"Connect Gmail Account"</strong> to link your business email.
+          </div>
+        ) : (
+          gmailAccounts.map((acc) => {
+            const isTokenValid = acc.isTokenValid !== false;
+            return (
+              <div key={acc.id} className={`flex items-center justify-between p-4 border rounded-2xl text-xs transition-all ${!isTokenValid ? "bg-rose-50/50 border-rose-300" : acc.isDefault ? "bg-rose-50/70 border-rose-300 shadow-2xs" : "bg-white border-slate-200 hover:border-rose-200"}`}>
+                <div className="space-y-1">
+                  <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <span>{acc.emailAddress || "Gmail Account"}</span>
+                    {acc.isDefault && <span className="px-2 py-0.5 text-[10px] font-extrabold text-rose-800 bg-rose-100 rounded-full border border-rose-200">Primary Sender</span>}
+                    {!isTokenValid && <span className="px-2 py-0.5 text-[10px] font-extrabold text-rose-700 bg-rose-100 rounded-full border border-rose-300">⚠ Reconnect Needed</span>}
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono">Display Name: {acc.displayName || acc.emailAddress?.split("@")[0]}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!acc.isDefault ? (
+                    <button type="button" onClick={() => setDefaultGmailAccount(acc.id)} className="px-3.5 py-1.5 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 font-bold text-xs rounded-xl transition-all cursor-pointer">
+                      Set Primary
+                    </button>
+                  ) : (
+                    <span className="px-3 py-1 bg-rose-100 text-rose-800 font-bold text-xs rounded-xl flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Primary</span>
+                  )}
+                  <button type="button" onClick={async () => { if (confirm(`Disconnect ${acc.emailAddress}?`)) { await fetch(`${BACKEND_URL}/api/gmail/disconnect`, { method: "POST", headers: { "Content-Type": "application/json", "x-organization-id": getOrgId() }, body: JSON.stringify({ accountId: acc.id }) }); fetchGmailAccounts(); } }} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer">
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  </>
+) : settingsSubTab === "google-ads" ? (
+  <>
+    {/* GOOGLE ADS WORKSPACE INTEGRATION CARD */}
+    <div className="bg-gradient-to-br from-blue-50 via-white to-indigo-50 border border-blue-200 rounded-2xl p-6 space-y-5 shadow-2xs relative overflow-hidden animate-fadeIn">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+            <Activity className="h-6 w-6 text-blue-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-slate-900">Google Ads Workspace Integration</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 uppercase">
+                OFFICIAL GOOGLE ADS API
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Manage campaigns, sync ad metrics, and configure customer IDs linked exclusively to this organization.
+            </p>
+          </div>
+        </div>
 
-                      <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-700 font-semibold">Live Google Business Review Redirect URL</label>
-                        <input
-                          type="text"
-                          value={googleConfig.googleReviewUrl || ""}
-                          onChange={(e) => setGoogleConfig({ ...googleConfig, googleReviewUrl: e.target.value })}
-                          placeholder="e.g. https://search.google.com/local/writereview?placeid=ChIJK7R..."
-                          className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue"
-                        />
-                      </div>
+        <div className="flex items-center gap-2.5">
+          <a
+            href={`${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/settings?tab=google-ads&source=google_ads`}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Connect Google Ads Account</span>
+          </a>
+          <Link href="/ads" className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer">
+            <span>Go to Ads Workspace</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-700 font-semibold">Google Business Account ID (Optional)</label>
-                          <input
-                            type="text"
-                            value={formGoogleAccountId}
-                            onChange={(e) => setFormGoogleAccountId(e.target.value)}
-                            placeholder="e.g. 1048273892019"
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue font-mono text-xs"
-                          />
-                        </div>
+      {/* Linked Google Ads Accounts List */}
+      <div className="space-y-3 pt-2">
+        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+          <Activity className="w-4 h-4 text-blue-600" /> Authorized Customer Accounts ({googleAdsAccountsList.length})
+        </h4>
+        {googleAdsAccountsList.length === 0 ? (
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+            No Google Ads accounts authorized for this organization yet. Click <strong>"Connect Google Ads Account"</strong> to authorize.
+          </div>
+        ) : (
+          googleAdsAccountsList.map((acc) => {
+            const isSelected = acc.customerId === selectedGoogleAdsCid || acc.isDefault;
+            return (
+              <div key={acc.customerId} className={`flex items-center justify-between p-4 border rounded-2xl text-xs transition-all ${isSelected ? "bg-blue-50/70 border-blue-300 shadow-2xs" : "bg-white border-slate-200 hover:border-blue-200"}`}>
+                <div className="space-y-1">
+                  <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <span>{acc.descriptiveName || `Account ${acc.customerId}`}</span>
+                    {acc.isDefault && <span className="px-2 py-0.5 text-[10px] font-extrabold text-blue-800 bg-blue-100 rounded-full border border-blue-200">Active</span>}
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono">Customer ID: {acc.customerId}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => handleDisconnectGoogleAds(acc.customerId)} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer">
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  </>
+) : settingsSubTab === "meta-ads" ? (
+  <>
+    {/* META ADS INTEGRATION CARD */}
+    <div className="bg-gradient-to-br from-blue-50 via-white to-sky-50 border border-blue-200 rounded-2xl p-6 space-y-5 shadow-2xs relative overflow-hidden animate-fadeIn">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 shrink-0">
+            <Globe className="h-6 w-6 text-blue-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-slate-900">Meta Ads Manager Integration</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 uppercase">
+                OFFICIAL META GRAPH API
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Connect Facebook & Instagram Advertising accounts to deploy AI ad sets, track leads, and manage ad budgets.
+            </p>
+          </div>
+        </div>
 
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-700 font-semibold">Google Business Location ID</label>
-                          <input
-                            type="text"
-                            value={formGoogleLocationId}
-                            onChange={(e) => setFormGoogleLocationId(e.target.value)}
-                            placeholder="e.g. 15154699825689004204"
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue font-mono text-xs"
-                          />
-                        </div>
+        <div className="flex items-center gap-2.5">
+          <a
+            href={`${BACKEND_URL}/api/meta-ads/oauth/connect?orgId=${getOrgId()}&redirect=/settings?tab=meta-ads`}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>{metaAdsConfig?.accessToken ? "Reconnect Meta Account" : "Connect Meta Ads"}</span>
+          </a>
+          <Link href="/meta-ads" className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer">
+            <span>Go to Meta Ads</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
 
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-700 font-semibold">Google Ads Customer ID</label>
-                          <input
-                            type="text"
-                            value={formGoogleAdsCustomerId}
-                            onChange={(e) => setFormGoogleAdsCustomerId(e.target.value)}
-                            placeholder="e.g. 123-456-7890"
-                            className="bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue font-mono text-xs"
-                          />
-                        </div>
-                      </div>
+      {metaAdsConfig?.accessToken ? (
+        <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-blue-900 font-bold">
+            <Check className="h-4.5 w-4.5 text-blue-600" />
+            <span>Status: Connected to Meta Marketing API</span>
+          </div>
+          <button type="button" onClick={handleDisconnectMetaAds} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer">
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+          Meta Ads is not connected for this organization. Click <strong>"Connect Meta Ads"</strong> to authorize.
+        </div>
+      )}
+    </div>
+  </>
+) : settingsSubTab === "linkedin" ? (
+  <>
+    {/* LINKEDIN PUBLISHING & COMPANY PAGE CARD */}
+    <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50 border border-sky-200 rounded-2xl p-6 space-y-5 shadow-2xs relative overflow-hidden animate-fadeIn">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="h-12 w-12 rounded-2xl bg-sky-100 border border-sky-200 flex items-center justify-center text-sky-700 shrink-0">
+            <Share2 className="h-6 w-6 text-sky-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-slate-900">LinkedIn Publishing & Company Pages</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200 uppercase">
+                OFFICIAL LINKEDIN API
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Connect personal LinkedIn profile or Organization Company Page to schedule posts and monitor engagement.
+            </p>
+          </div>
+        </div>
 
-                      <div className="pt-2 flex items-center justify-between">
-                        <button
-                          type="submit"
-                          disabled={googleSaveStatus === "saving"}
-                          className="bg-brand-blue hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs px-6 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-md cursor-pointer"
-                        >
-                          <Save className="h-4 w-4" />
-                          {googleSaveStatus === "saving" ? "Saving..." : googleSaveStatus === "success" ? "Saved Config Successfully!" : "Save Google Configurations"}
-                        </button>
-                        {googleSaveStatus === "error" && (
-                          <span className="text-xs text-rose-600 font-medium">Failed to save Google config.</span>
-                        )}
-                      </div>
-                    </form>
-                  </>
+        <div className="flex items-center gap-2.5">
+          <a
+            href={`${BACKEND_URL}/api/linkedin/auth/login?orgId=${getOrgId()}&redirect=/settings?tab=linkedin`}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white font-bold text-xs rounded-xl shadow-md shadow-sky-600/20 transition-all cursor-pointer"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span>Connect Personal Profile</span>
+          </a>
+          <a
+            href={`${BACKEND_URL}/api/linkedin/auth/org/login?orgId=${getOrgId()}&redirect=/settings?tab=linkedin`}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-sky-300 hover:bg-sky-50 text-sky-800 font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer"
+          >
+            <Store className="h-4 w-4 text-sky-600" />
+            <span>Connect Company Page</span>
+          </a>
+        </div>
+      </div>
+
+      {linkedInConfig?.accessToken ? (
+        <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-4 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-sky-900 font-bold">
+            <Check className="h-4.5 w-4.5 text-sky-600" />
+            <span>Status: Connected as {linkedInConfig.memberName || linkedInConfig.companyName || "LinkedIn Account"}</span>
+          </div>
+          <button type="button" onClick={handleDisconnectLinkedIn} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer">
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+          LinkedIn is not connected for this organization. Choose an option above to link your profile or company page.
+        </div>
+      )}
+    </div>
+  </>
                 ) : settingsSubTab === "youtube" ? (
                   <>
                     {/* Official YouTube Channel Embedded Signup Card */}
@@ -5538,32 +6154,60 @@ print(res.json())`;
                   <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <HelpCircle className="h-4 w-4 text-emerald-600" /> Setup Instructions
                   </h4>
-                  
                   {settingsSubTab === "whatsapp" ? (
                     <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-emerald-600 marker:font-bold animate-fadeIn">
                       <li>Create a Meta Developer app under your Meta developer account.</li>
                       <li>Add the <strong>WhatsApp</strong> product to your Meta Developer app.</li>
                       <li>Generate a <strong>Permanent System User Access Token</strong> in your Meta Business settings.</li>
-                      <li>Copy your <strong>Phone Number ID</strong> and <strong>WABA ID</strong> and paste them into the form.</li>
+                      <li>Copy your <strong>Phone Number ID</strong> and <strong>WABA ID</strong> into the form or use 1-click Embedded Signup.</li>
                     </ul>
                   ) : settingsSubTab === "instagram" ? (
                     <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-pink-600 marker:font-bold animate-fadeIn">
-                      <li>Create a Meta Developer app under your Meta developer account.</li>
-                      <li>Add the <strong>Messenger</strong> product to your Meta Developer app.</li>
-                      <li>Generate a <strong>Permanent System User Access Token</strong> with <code className="text-[10px] bg-slate-100 text-slate-800 p-0.5 px-1 rounded border border-slate-200">instagram_basic</code> scope.</li>
-                      <li>Link your Facebook Page and Instagram Business Account.</li>
+                      <li>Connect with Meta Instagram login to grant message and DM permissions.</li>
+                      <li>Link your Facebook Page and Professional Instagram Account.</li>
+                      <li>Ensure App Review permissions <code className="text-[10px] bg-slate-100 text-slate-800 p-0.5 px-1 rounded border border-slate-200">instagram_manage_messages</code> are active.</li>
+                    </ul>
+                  ) : settingsSubTab === "gmb" ? (
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-amber-600 marker:font-bold animate-fadeIn">
+                      <li>Click <strong>"Connect GMB with Google"</strong> to authorize your Google Business Profile.</li>
+                      <li>Click <strong>"Fetch Locations Now"</strong> to discover all verified store and branch locations.</li>
+                      <li>Choose your primary active location to sync posts and metrics.</li>
+                    </ul>
+                  ) : settingsSubTab === "reviews" ? (
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-amber-600 marker:font-bold animate-fadeIn">
+                      <li>Enter or auto-sync your <strong>Google Place ID</strong>.</li>
+                      <li>Verify the <strong>Live Review URL</strong> for positive ratings.</li>
+                      <li>QR codes on the Reviews page will automatically generate for this location only.</li>
+                    </ul>
+                  ) : settingsSubTab === "gmail" ? (
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-rose-600 marker:font-bold animate-fadeIn">
+                      <li>Connect one or multiple business Gmail accounts.</li>
+                      <li>Set a <strong>Primary Sender</strong> for automated client communications.</li>
+                      <li>Tokens and access scopes are isolated strictly to your active organization.</li>
+                    </ul>
+                  ) : settingsSubTab === "google-ads" ? (
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-blue-600 marker:font-bold animate-fadeIn">
+                      <li>Click <strong>"Connect Google Ads Account"</strong> to grant Google Ads API authorization.</li>
+                      <li>Authorized 10-digit Customer IDs appear in your active account list.</li>
+                      <li>Switch to the Ads workspace to create campaigns and review live metrics.</li>
+                    </ul>
+                  ) : settingsSubTab === "meta-ads" ? (
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-blue-600 marker:font-bold animate-fadeIn">
+                      <li>Connect Facebook & Instagram Advertising permissions via Meta OAuth.</li>
+                      <li>Ad accounts, Pixels, and Pages are automatically discovered for your organization.</li>
+                    </ul>
+                  ) : settingsSubTab === "linkedin" ? (
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-sky-600 marker:font-bold animate-fadeIn">
+                      <li>Link personal profile or organization company page.</li>
+                      <li>Author URNs and publishing tokens are saved per organization.</li>
                     </ul>
                   ) : settingsSubTab === "youtube" ? (
                     <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-red-600 marker:font-bold animate-fadeIn">
-                      <li>Go to <strong>Google Cloud Console</strong> and create a project.</li>
-                      <li>Enable the <strong>YouTube Data API v3</strong> product.</li>
-                      <li>Click <strong>"Connect YouTube Account"</strong> to authorize with 1-click Google OAuth.</li>
-                      <li>Alternatively, input your <strong>Channel ID</strong> and <strong>OAuth Refresh Token</strong> manually.</li>
+                      <li>Authorize YouTube with Google OAuth to sync video comments and subscriber metrics.</li>
                     </ul>
                   ) : (
-                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-brand-blue marker:font-bold animate-fadeIn">
-                      <li>Retrieve your <strong>Place ID</strong> from the Google Maps Developer Console.</li>
-                      <li>Input the Live Google Review URL so positive review selections can redirect consumers.</li>
+                    <ul className="text-xs text-slate-600 space-y-3.5 pl-4 list-decimal marker:text-blue-600 marker:font-bold animate-fadeIn">
+                      <li>Manage API keys and inspect developer telemetry logs for this organization.</li>
                     </ul>
                   )}
                 </div>

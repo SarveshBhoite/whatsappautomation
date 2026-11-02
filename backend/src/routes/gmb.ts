@@ -42,15 +42,16 @@ router.get("/accounts", async (req, res) => {
       return res.status(200).json({ accounts: [] });
     }
     const accounts = await (prisma as any).googleBusinessConfig.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, isActive: true },
       orderBy: { createdAt: "desc" }
     });
 
     const accountsWithStatus = accounts.map((acc: any) => {
-      const hasAuth = Boolean(acc.googleRefreshToken || acc.refreshToken || acc.accessToken);
+      const hasAuth = Boolean((acc.googleRefreshToken || acc.refreshToken || acc.accessToken) && acc.isActive !== false);
       return {
         ...acc,
         isTokenValid: hasAuth,
+        isActive: hasAuth,
         tokenError: hasAuth ? "" : "Google authorization is missing or expired. Please reconnect.",
       };
     });
@@ -87,6 +88,140 @@ router.post("/set-default", async (req: any, res: any) => {
   }
 });
 
+// POST /api/gmb/discover-locations: Explicitly discover & sync all locations from Google My Business for the active org
+router.post("/discover-locations", async (req: any, res: any) => {
+  try {
+    const orgId = (req.body.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const { accountId } = req.body;
+
+    const config = await (prisma as any).googleBusinessConfig.findFirst({
+      where: accountId ? { id: accountId, organizationId: orgId } : { organizationId: orgId, isActive: true },
+      orderBy: { isDefault: "desc" }
+    });
+
+    if (!config || (!config.googleRefreshToken && !config.refreshToken && !config.accessToken)) {
+      return res.status(400).json({ 
+        error: "NO_AUTH_FOUND", 
+        message: "No connected Google account found for this organization. Please connect via Google OAuth first." 
+      });
+    }
+
+    const clientId = config.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = config.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+    const refreshToken = config.googleRefreshToken || config.refreshToken;
+
+    let accessToken = config.accessToken;
+    if (clientId && clientSecret && refreshToken) {
+      try {
+        accessToken = await getGoogleAccessToken(clientId, clientSecret, refreshToken);
+      } catch (tErr: any) {
+        console.warn("[GMB Location Discovery] Token refresh error:", tErr.message);
+      }
+    }
+
+    if (!accessToken) {
+      return res.status(400).json({ error: "UNAUTHORIZED", message: "Failed to obtain valid Google access token." });
+    }
+
+    // Call Google My Business Accounts API
+    let discoveredLocations: { googleLocationId: string; locationName: string; placeId?: string; reviewUrl?: string }[] = [];
+    try {
+      const accountsRes = await axios.get("https://mybusinessaccountmanagement.googleapis.com/v1/accounts", {
+        headers: { Authorization: "Bearer " + accessToken }
+      });
+      const accounts = accountsRes.data.accounts || [];
+
+      for (const acc of accounts) {
+        const accountName = acc.name; // accounts/{accountId}
+        const accId = accountName.split("/")[1];
+        try {
+          const locRes = await axios.get(
+            "https://mybusinessbusinessinformation.googleapis.com/v1/" + accountName + "/locations?readMask=name,title,metadata",
+            { headers: { Authorization: "Bearer " + accessToken } }
+          );
+          const locations = locRes.data.locations || [];
+          for (const loc of locations) {
+            const rawLocName = loc.name;
+            const locId = rawLocName.includes("/") ? rawLocName.split("/").pop() : rawLocName;
+            const placeId = loc.metadata?.placeId || "";
+            const reviewUrl = loc.metadata?.newReviewUri || (placeId ? ("https://search.google.com/local/writereview?placeid=" + placeId) : "");
+            discoveredLocations.push({
+              googleLocationId: "accounts/" + accId + "/locations/" + locId,
+              locationName: loc.title || "Google Business Location",
+              placeId,
+              reviewUrl
+            });
+          }
+        } catch (lErr: any) {
+          console.warn("[GMB Discovery] Locations list failed for " + accountName + ":", lErr.message);
+        }
+      }
+    } catch (aErr: any) {
+      console.warn("[GMB Discovery] Accounts list failed:", aErr.message);
+    }
+
+    // Sync discovered locations into database for this organization
+    const existingConfigs = await (prisma as any).googleBusinessConfig.findMany({
+      where: { organizationId: orgId }
+    });
+
+    const syncedAccounts: any[] = [];
+    if (discoveredLocations.length > 0) {
+      for (let idx = 0; idx < discoveredLocations.length; idx++) {
+        const item = discoveredLocations[idx];
+        const match = existingConfigs.find((c: any) => c.googleLocationId === item.googleLocationId);
+        if (match) {
+          const updated = await (prisma as any).googleBusinessConfig.update({
+            where: { id: match.id },
+            data: {
+              locationName: item.locationName || match.locationName,
+              googlePlaceId: item.placeId || match.googlePlaceId,
+              googleReviewUrl: item.reviewUrl || match.googleReviewUrl,
+              googleRefreshToken: refreshToken || match.googleRefreshToken,
+              accessToken: accessToken || match.accessToken,
+              isActive: true
+            }
+          });
+          syncedAccounts.push(updated);
+        } else {
+          const created = await (prisma as any).googleBusinessConfig.create({
+            data: {
+              organizationId: orgId,
+              googleLocationId: item.googleLocationId,
+              locationName: item.locationName,
+              googlePlaceId: item.placeId,
+              googleReviewUrl: item.reviewUrl,
+              googleRefreshToken: refreshToken || "",
+              accessToken: accessToken || "",
+              googleEmail: config.googleEmail || "",
+              googleName: config.googleName || "",
+              googlePicture: config.googlePicture || "",
+              googleAdsCustomerId: config.googleAdsCustomerId || "",
+              autoReplyEnabled: true,
+              autoReplyMinRating: 4,
+              autoReplyTemplate: "Thank you so much for your review! We value your feedback.",
+              isDefault: existingConfigs.length === 0 && idx === 0,
+              isActive: true
+            }
+          });
+          syncedAccounts.push(created);
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      discoveredCount: discoveredLocations.length,
+      locations: discoveredLocations,
+      syncedAccounts
+    });
+  } catch (err: any) {
+    console.error("[GMB Location Discovery] Error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
 // 1. GET GMB Configuration
 router.get("/config", async (req, res) => {
   try {
@@ -121,19 +256,7 @@ router.get("/config", async (req, res) => {
     });
 
     if (accounts.length === 0) {
-      const defaultCfg = await (prisma as any).googleBusinessConfig.create({
-        data: {
-          organizationId: orgId,
-          locationName: org.name || "Business Location",
-          googleReviewUrl: "",
-          autoReplyEnabled: false,
-          autoReplyMinRating: 4,
-          autoReplyTemplate: "Thank you for the review! We appreciate your support.",
-          isDefault: true,
-          isActive: true
-        }
-      });
-      accounts = [defaultCfg];
+      return res.status(200).json(null);
     }
 
     let config: any = null;
@@ -349,8 +472,8 @@ router.get("/oauth/callback", async (req, res) => {
       console.warn("Could not fetch Google user profile:", profileErr.message);
     }
 
-    // Discover all locations under the user's GMB accounts
-    let discoveredLocations: { googleLocationId: string, locationName: string }[] = [];
+    // Discover all locations under the user's GMB accounts (including metadata: placeId, newReviewUri)
+    let discoveredLocations: { googleLocationId: string; locationName: string; placeId?: string; reviewUrl?: string }[] = [];
     try {
       const accountsRes = await axios.get("https://mybusinessaccountmanagement.googleapis.com/v1/accounts", {
         headers: { Authorization: `Bearer ${access_token}` }
@@ -360,16 +483,20 @@ router.get("/oauth/callback", async (req, res) => {
         const accountName = acc.name; // accounts/{accountId}
         const accountId = accountName.split("/")[1];
         try {
-          const locationsRes = await axios.get(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title`, {
+          const locationsRes = await axios.get(`https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title,metadata`, {
             headers: { Authorization: `Bearer ${access_token}` }
           });
           const locations = locationsRes.data.locations || [];
           for (const loc of locations) {
             const rawLocName = loc.name;
             const locId = rawLocName.includes("/") ? rawLocName.split("/").pop() : rawLocName;
+            const placeId = loc.metadata?.placeId || "";
+            const reviewUrl = loc.metadata?.newReviewUri || (placeId ? `https://search.google.com/local/writereview?placeid=${placeId}` : "");
             discoveredLocations.push({
               googleLocationId: `accounts/${accountId}/locations/${locId}`,
-              locationName: loc.title || "Google Business Location"
+              locationName: loc.title || "Google Business Location",
+              placeId,
+              reviewUrl
             });
           }
         } catch (locErr: any) {
@@ -417,6 +544,8 @@ router.get("/oauth/callback", async (req, res) => {
               googleRefreshToken: refresh_token || match.googleRefreshToken,
               accessToken: access_token || match.accessToken,
               locationName: item.locationName || match.locationName,
+              googlePlaceId: item.placeId || match.googlePlaceId,
+              googleReviewUrl: item.reviewUrl || match.googleReviewUrl,
               googleAdsCustomerId: googleAdsCustomerId || match.googleAdsCustomerId,
               googleEmail: googleEmail || match.googleEmail,
               googleName: googleName || match.googleName,
@@ -430,6 +559,8 @@ router.get("/oauth/callback", async (req, res) => {
               organizationId: orgId,
               googleLocationId: item.googleLocationId,
               locationName: item.locationName,
+              googlePlaceId: item.placeId,
+              googleReviewUrl: item.reviewUrl,
               googleRefreshToken: refresh_token || "",
               accessToken: access_token || "",
               googleAdsCustomerId: googleAdsCustomerId || "",
@@ -1948,29 +2079,12 @@ router.post("/disconnect", async (req, res) => {
     }
 
     if (accountId) {
-      // Disconnect or mark expired for the specific account
-      await (prisma as any).googleBusinessConfig.updateMany({
+      await (prisma as any).googleBusinessConfig.deleteMany({
         where: { id: accountId, organizationId: orgId },
-        data: {
-          googleRefreshToken: null,
-          refreshToken: null,
-          accessToken: "",
-          googleLocationId: null,
-          googlePlaceId: null,
-          googleReviewUrl: null,
-        },
       });
     } else {
-      await (prisma as any).googleBusinessConfig.updateMany({
+      await (prisma as any).googleBusinessConfig.deleteMany({
         where: { organizationId: orgId },
-        data: {
-          googleRefreshToken: null,
-          refreshToken: null,
-          accessToken: "",
-          googleLocationId: null,
-          googlePlaceId: null,
-          googleReviewUrl: null,
-        },
       });
     }
     return res.status(200).json({ success: true, message: "Google Business account disconnected successfully." });
