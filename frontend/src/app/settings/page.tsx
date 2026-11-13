@@ -526,6 +526,9 @@ export default function Dashboard() {
           setYtOauthStatus("success");
           fetchYoutubeConfig();
           setTimeout(() => setYtOauthStatus("idle"), 3000);
+        } else if (platform === "meta") {
+          setSettingsSubTab("meta-ads");
+          fetchMetaAdsSettings();
         } else {
           setSettingsSubTab("gmb");
           setGoogleOauthStatus("success");
@@ -5856,6 +5859,60 @@ print(res.json())`;
           Meta Ads is not connected for this organization. Click <strong>"Connect Meta Ads"</strong> to authorize.
         </div>
       )}
+
+      {/* Linked Meta Ad Accounts List */}
+      <div className="space-y-3 pt-2">
+        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+          <Activity className="w-4 h-4 text-blue-600" /> Connected Ad Accounts ({metaAdAccountsList.length})
+        </h4>
+        {metaAdAccountsList.length === 0 ? (
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500">
+            {metaAdsConfig?.accessToken
+              ? "No Meta Ad Accounts found under this profile or business manager."
+              : "No Meta Ad accounts authorized for this organization yet. Click \"Connect Meta Ads\" to authorize."}
+          </div>
+        ) : (
+          metaAdAccountsList.map((acc: any) => {
+            const accId = acc.adAccountId || acc.id;
+            const isSelected = metaAdsConfig?.adAccountId === accId || acc.isActive;
+            return (
+              <div
+                key={accId}
+                className={`flex items-center justify-between p-4 border rounded-2xl text-xs transition-all ${
+                  isSelected
+                    ? "bg-blue-50/70 border-blue-300 shadow-2xs"
+                    : "bg-white border-slate-200 hover:border-blue-200"
+                }`}
+              >
+                <div className="space-y-1">
+                  <div className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                    <span>{acc.name || `Ad Account ${accId}`}</span>
+                    {isSelected && (
+                      <span className="px-2 py-0.5 text-[10px] font-extrabold text-blue-800 bg-blue-100 rounded-full border border-blue-200">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono">
+                    <span>Account ID: {accId}</span>
+                    {acc.currency && <span>Currency: {acc.currency}</span>}
+                    {acc.timezoneName && <span>Timezone: {acc.timezoneName}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDisconnectMetaAds}
+                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   </>
 ) : settingsSubTab === "linkedin" ? (
