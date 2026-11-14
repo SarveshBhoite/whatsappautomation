@@ -555,12 +555,29 @@ router.post("/campaigns/:id/status", async (req: Request, res: Response) => {
  */
 router.get("/campaigns/:id", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
     const campaignId = req.params.id as string;
-    const campaign = await MetaAdsService.getCampaignById(orgId, campaignId);
-    res.json({ success: true, campaign });
+    const result = await MetaAdsService.getCampaignById(orgId, campaignId);
+    res.json({ success: true, campaign: result.campaign, liveMeta: result.liveMeta });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching campaign:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * GET /api/meta-ads/ads/:id/preview
+ * Fetch live rendered Meta iframe preview
+ */
+router.get("/ads/:id/preview", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const adId = req.params.id as string;
+    const format = (req.query.ad_format as string) || "DESKTOP_FEED_STANDARD";
+    const preview = await MetaAdsService.getAdPreview(orgId, adId, format);
+    res.json({ success: true, preview });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error fetching ad preview:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

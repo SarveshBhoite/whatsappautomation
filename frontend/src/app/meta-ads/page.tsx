@@ -229,6 +229,9 @@ function MetaAdsWorkspace({
   const [fetchingDetail, setFetchingDetail] = useState(false);
   const [detailModalTab, setDetailModalTab] = useState<"metrics" | "config" | "adsets" | "creatives" | "raw">("metrics");
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [previewAd, setPreviewAd] = useState<any>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const currencySymbol = "₹";
 
@@ -389,6 +392,26 @@ function MetaAdsWorkspace({
     }
   };
 
+  const handleOpenAdPreview = async (ad: any) => {
+    setPreviewAd(ad);
+    setLoadingPreview(true);
+    setPreviewHtml(null);
+    try {
+      const targetId = ad.metaAdId || ad.id;
+      const res = await fetch(`${BACKEND}/api/meta-ads/ads/${targetId}/preview?organizationId=${orgId}`);
+      const data = await res.json();
+      if (data.preview?.body) {
+        setPreviewHtml(data.preview.body);
+      } else {
+        setPreviewHtml(null);
+      }
+    } catch (e: any) {
+      console.warn("Error fetching ad preview:", e);
+      setPreviewHtml(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
   const handleSelectAccount = async (newAccountId: string) => {
     setSelectedAccountId(newAccountId);
     setFormAdAccountId(newAccountId);
@@ -1168,10 +1191,10 @@ function MetaAdsWorkspace({
                       </td>
                       <td className="p-4 text-right">
                         <button
-                          onClick={() => showToast(`Previewing Creative: ${ad.name}`)}
-                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer"
+                          onClick={() => handleOpenAdPreview(ad)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
                         >
-                          Preview
+                          <Eye className="w-3.5 h-3.5" /> Preview
                         </button>
                       </td>
                     </tr>
@@ -1565,6 +1588,85 @@ function MetaAdsWorkspace({
             fetchCampaigns();
           }}
         />
+      )}
+
+      {/* LIVE AD PREVIEW MODAL */}
+      {previewAd && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl flex flex-col max-h-[92vh] w-full max-w-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-bold">
+                  <Eye className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">{previewAd.name}</h3>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">
+                    Meta Ad ID: {previewAd.metaAdId || previewAd.id} • {previewAd.callToAction || "WHATSAPP_MESSAGE"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setPreviewAd(null); setPreviewHtml(null); }}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 flex flex-col items-center justify-center">
+              {loadingPreview ? (
+                <div className="py-16 flex flex-col items-center justify-center gap-3 text-slate-500 text-xs">
+                  <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                  <span>Loading authentic rendered preview from Meta Graph API...</span>
+                </div>
+              ) : previewHtml ? (
+                <div
+                  className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-w-full overflow-hidden"
+                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+                />
+              ) : (
+                /* Fallback clean creative preview card if Meta iframe is unavailable */
+                <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                  {previewAd.creative?.image_url || previewAd.creativeMediaUrl ? (
+                    <img
+                      src={previewAd.creative?.image_url || previewAd.creativeMediaUrl}
+                      alt={previewAd.name}
+                      className="w-full max-h-72 object-cover border-b border-slate-100"
+                    />
+                  ) : null}
+                  <div className="p-5 space-y-3">
+                    <p className="text-xs font-bold text-slate-900">
+                      {previewAd.creativeHeadline || previewAd.creative?.title || previewAd.creative?.name || "Ad Creative"}
+                    </p>
+                    <p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto">
+                      {previewAd.creativeBody || previewAd.creative?.body || ""}
+                    </p>
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] font-mono text-slate-500">CTA Button:</span>
+                      <span className="px-3 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-xs">
+                        {previewAd.callToAction || previewAd.creative?.call_to_action_type || "Send WhatsApp Message"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-500 font-medium">Rendered directly from Meta Marketing API</span>
+              <button
+                onClick={() => { setPreviewAd(null); setPreviewHtml(null); }}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* DETAIL INSPECTOR MODAL */}

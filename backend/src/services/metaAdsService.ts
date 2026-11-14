@@ -1891,8 +1891,16 @@ export class MetaAdsService {
    * Fetch single campaign by ID
    */
   static async getCampaignById(organizationId: string, campaignId: string) {
-    return prisma.metaAdCampaign.findFirst({
-      where: { id: campaignId, organizationId },
+    const config = await this.getConfig(organizationId);
+
+    const campaign = await prisma.metaAdCampaign.findFirst({
+      where: {
+        organizationId,
+        OR: [
+          { id: campaignId },
+          { metaCampaignId: campaignId }
+        ]
+      },
       include: {
         adSets: {
           include: {
@@ -1901,6 +1909,51 @@ export class MetaAdsService {
         },
       },
     });
+
+    let liveMeta: any = null;
+    const targetMetaId = campaign?.metaCampaignId || (campaignId.startsWith("120") ? campaignId : null);
+
+    if (config?.accessToken && targetMetaId && !targetMetaId.startsWith("meta_camp_")) {
+      try {
+        const resp = await axios.get(`${META_GRAPH_BASE}/${targetMetaId}`, {
+          params: {
+            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,bid_strategy,created_time,start_time,stop_time,insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,ctr,cpc,actions},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,ads{id,name,status,effective_status,creative{id,name,title,body,image_url,call_to_action_type}}}",
+            access_token: config.accessToken,
+          },
+        });
+        liveMeta = resp.data;
+      } catch (err: any) {
+        console.warn("[MetaAdsService] Graph API getCampaignById warning:", err.message);
+      }
+    }
+
+    return { campaign, liveMeta };
+  }
+
+  /**
+   * Fetch live rendered iframe preview for an ad from Meta Graph API
+   */
+  static async getAdPreview(organizationId: string, adId: string, adFormat = "DESKTOP_FEED_STANDARD") {
+    const config = await this.getConfig(organizationId);
+    if (!config?.accessToken) throw new Error("Meta Access Token missing");
+
+    // Look up metaAdId if uuid provided
+    let targetMetaAdId = adId;
+    try {
+      const dbAd = await prisma.metaAd.findFirst({
+        where: { OR: [{ id: adId }, { metaAdId: adId }] }
+      });
+      if (dbAd?.metaAdId) targetMetaAdId = dbAd.metaAdId;
+    } catch (e) {}
+
+    const resp = await axios.get(`${META_GRAPH_BASE}/${targetMetaAdId}/previews`, {
+      params: {
+        ad_format: adFormat,
+        access_token: config.accessToken,
+      },
+    });
+
+    return resp.data?.data?.[0] || null;
   }
 
   /**
