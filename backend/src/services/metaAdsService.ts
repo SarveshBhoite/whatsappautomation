@@ -1691,9 +1691,11 @@ export class MetaAdsService {
       const formattedAccountId = rawAccountId.startsWith("act_") ? rawAccountId : `act_${rawAccountId}`;
 
       try {
+        // Query Meta Graph API for active/paused live campaigns along with their real performance insights and adsets hierarchy
         const campResp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/campaigns`, {
           params: {
-            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}",
+            effective_status: JSON.stringify(["ACTIVE", "PAUSED", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO", "IN_PROCESS", "WITH_ISSUES"]),
+            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,insights.date_preset(maximum){impressions,clicks,spend,reach,actions},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}",
             access_token: config.accessToken,
           },
         });
@@ -1704,17 +1706,44 @@ export class MetaAdsService {
           const rawStatus = (lc.effective_status || lc.status || "PAUSED").toUpperCase();
           const cleanStatus = validCampaignStatuses.includes(rawStatus) ? rawStatus : "PAUSED";
 
-          await prisma.metaAdCampaign.upsert({
+          const ins = lc.insights?.data?.[0];
+          const impressions = ins?.impressions ? parseInt(ins.impressions, 10) : 0;
+          const clicks = ins?.clicks ? parseInt(ins.clicks, 10) : 0;
+          const spend = ins?.spend ? parseFloat(ins.spend) : 0;
+          const reach = ins?.reach ? parseInt(ins.reach, 10) : 0;
+          let conversions = 0;
+          if (Array.isArray(ins?.actions)) {
+            for (const a of ins.actions) {
+              if (
+                a.action_type === "onsite_conversion.total_messaging_connection" ||
+                a.action_type === "onsite_conversion.messaging_conversation_started_7d" ||
+                a.action_type === "lead" ||
+                a.action_type === "purchase" ||
+                a.action_type === "contact_total"
+              ) {
+                conversions += parseInt(a.value || "0", 10);
+              }
+            }
+          }
+
+          const savedCamp = await prisma.metaAdCampaign.upsert({
             where: {
               metaCampaignId: lc.id,
             },
             update: {
+              organizationId,
+              adAccountId: formattedAccountId,
               name: lc.name,
               objective: lc.objective,
               status: cleanStatus,
               effectiveStatus: rawStatus,
               dailyBudget: lc.daily_budget ? Math.round(Number(lc.daily_budget) / 100) : 500,
               lifetimeBudget: lc.lifetime_budget ? Math.round(Number(lc.lifetime_budget) / 100) : null,
+              impressions,
+              clicks,
+              spend,
+              reach,
+              conversions,
             },
             create: {
               organizationId,
@@ -1727,8 +1756,73 @@ export class MetaAdsService {
               buyingType: lc.buying_type || "AUCTION",
               dailyBudget: lc.daily_budget ? Math.round(Number(lc.daily_budget) / 100) : 500,
               lifetimeBudget: lc.lifetime_budget ? Math.round(Number(lc.lifetime_budget) / 100) : null,
+              impressions,
+              clicks,
+              spend,
+              reach,
+              conversions,
             },
           });
+
+          // Sync Child AdSets & Ads if present
+          if (lc.adsets?.data && Array.isArray(lc.adsets.data)) {
+            for (const as of lc.adsets.data) {
+              const savedAdSet = await prisma.metaAdSet.upsert({
+                where: {
+                  metaAdSetId: as.id,
+                },
+                update: {
+                  name: as.name,
+                  status: (as.status || "PAUSED").toUpperCase(),
+                  optimizationGoal: as.optimization_goal || "REACH",
+                  destinationType: as.destination_type || "UNDEFINED",
+                },
+                create: {
+                  organizationId,
+                  campaignId: savedCamp.id,
+                  adAccountId: formattedAccountId,
+                  metaAdSetId: as.id,
+                  name: as.name,
+                  status: (as.status || "PAUSED").toUpperCase(),
+                  optimizationGoal: as.optimization_goal || "REACH",
+                  destinationType: as.destination_type || "UNDEFINED",
+                },
+              });
+
+              if (as.ads?.data && Array.isArray(as.ads.data)) {
+                for (const ad of as.ads.data) {
+                  await prisma.metaAd.upsert({
+                    where: {
+                      metaAdId: ad.id,
+                    },
+                    update: {
+                      name: ad.name,
+                      status: (ad.status || "PAUSED").toUpperCase(),
+                      effectiveStatus: ad.effective_status || "PAUSED",
+                      creativeTitle: ad.creative?.title || ad.creative?.name || null,
+                      creativeBody: ad.creative?.body || null,
+                      creativeMediaUrl: ad.creative?.image_url || null,
+                      callToAction: ad.creative?.call_to_action_type || null,
+                    },
+                    create: {
+                      organizationId,
+                      adSetId: savedAdSet.id,
+                      adAccountId: formattedAccountId,
+                      metaAdId: ad.id,
+                      name: ad.name,
+                      status: (ad.status || "PAUSED").toUpperCase(),
+                      effectiveStatus: ad.effective_status || "PAUSED",
+                      creativeHeadline: ad.creative?.title || ad.creative?.name || "Ad Creative",
+                      creativeTitle: ad.creative?.title || ad.creative?.name || null,
+                      creativeBody: ad.creative?.body || "",
+                      creativeMediaUrl: ad.creative?.image_url || null,
+                      callToAction: ad.creative?.call_to_action_type || null,
+                    },
+                  });
+                }
+              }
+            }
+          }
 
           syncedCount++;
         }
@@ -1744,11 +1838,25 @@ export class MetaAdsService {
    * Fetch all campaigns for an organization
    */
   static async getCampaigns(organizationId: string, adAccountId?: string) {
+    // Determine active account if not explicitly passed
+    let effectiveAdAccountId = adAccountId;
+    if (!effectiveAdAccountId) {
+      const cfg = await this.getConfig(organizationId);
+      if (cfg?.adAccountId) {
+        effectiveAdAccountId = cfg.adAccountId;
+      }
+    }
+
     const whereClause: any = { organizationId };
-    if (adAccountId) {
-      const clean = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+    if (effectiveAdAccountId) {
+      const clean = effectiveAdAccountId.startsWith("act_") ? effectiveAdAccountId : `act_${effectiveAdAccountId}`;
       whereClause.adAccountId = clean;
     }
+
+    // Exclude archived/deleted campaigns to match Meta Ads Manager default view
+    whereClause.status = { notIn: ["ARCHIVED", "DELETED"] };
+    whereClause.effectiveStatus = { notIn: ["ARCHIVED", "DELETED"] };
+
     return prisma.metaAdCampaign.findMany({
       where: whereClause,
       include: {

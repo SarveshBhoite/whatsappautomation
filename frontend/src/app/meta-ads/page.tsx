@@ -368,14 +368,14 @@ function MetaAdsWorkspace({
     setSelectedAccountId(newAccountId);
     setFormAdAccountId(newAccountId);
     try {
-      await fetch(`${BACKEND}/api/meta-ads/config`, {
+      await fetch(`${BACKEND}/api/meta-ads/accounts/select`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ organizationId: orgId, adAccountId: newAccountId }),
       });
       showToast(`Connected to Meta Ad Account (${newAccountId})`);
+      await handleSyncLive(newAccountId);
       fetchCampaigns(newAccountId);
-      handleSyncLive(newAccountId);
     } catch (err: any) {
       showToast(`Account selection failed: ${err.message}`);
     }
@@ -433,11 +433,58 @@ function MetaAdsWorkspace({
   };
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchMetaConfig(), fetchAccounts(), fetchCampaigns()]).finally(() => {
-      setLoading(false);
-    });
-  }, [fetchMetaConfig, fetchAccounts, fetchCampaigns]);
+    let isMounted = true;
+    const initialize = async () => {
+      setLoading(true);
+      try {
+        const [cfgRes, accRes] = await Promise.all([
+          fetch(`${BACKEND}/api/meta-ads/config?organizationId=${orgId}`),
+          fetch(`${BACKEND}/api/meta-ads/accounts?organizationId=${orgId}`)
+        ]);
+        const cfgData = await cfgRes.json();
+        const accData = await accRes.json();
+
+        let activeAccId = "";
+        if (cfgData.config) {
+          setConfig(cfgData.config);
+          setFormAppId(cfgData.config.appId || "");
+          setFormAppSecret(cfgData.config.appSecret || "");
+          setFormToken(cfgData.config.accessToken || "");
+          setFormAdAccountId(cfgData.config.adAccountId || "");
+          setFormPageId(cfgData.config.pageId || "");
+          if (cfgData.config.adAccountId) {
+            activeAccId = cfgData.config.adAccountId;
+          }
+        }
+
+        if (accData.accounts) {
+          const normalized = accData.accounts.map((a: any) => ({
+            ...a,
+            adAccountId: a.adAccountId || a.id || "",
+            name: a.name || a.businessName || a.adAccountId || a.id || "Meta Ad Account",
+          }));
+          setAccounts(normalized);
+          if (!activeAccId && normalized.length > 0) {
+            activeAccId = normalized[0].adAccountId;
+          }
+        }
+
+        if (activeAccId) {
+          setSelectedAccountId(activeAccId);
+          await fetchCampaigns(activeAccId);
+        } else {
+          await fetchCampaigns();
+        }
+      } catch (err) {
+        console.warn("Failed initializing Meta Ads workspace:", err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    initialize();
+    return () => { isMounted = false; };
+  }, [orgId, fetchCampaigns]);
 
   // Derive AdSets & Ads cleanly from authentic campaign hierarchy (no synthetic dummy items)
   const allAdSets = campaigns.flatMap(c =>
