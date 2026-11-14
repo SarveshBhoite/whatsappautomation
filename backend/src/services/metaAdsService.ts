@@ -1837,7 +1837,7 @@ export class MetaAdsService {
   /**
    * Fetch all campaigns for an organization
    */
-  static async getCampaigns(organizationId: string, adAccountId?: string) {
+  static async getCampaigns(organizationId: string, adAccountId?: string, statusFilter?: string) {
     // Determine active account if not explicitly passed
     let effectiveAdAccountId = adAccountId;
     if (!effectiveAdAccountId) {
@@ -1853,9 +1853,23 @@ export class MetaAdsService {
       whereClause.adAccountId = clean;
     }
 
-    // Exclude archived/deleted campaigns to match Meta Ads Manager default view
-    whereClause.status = { notIn: ["ARCHIVED", "DELETED"] };
-    whereClause.effectiveStatus = { notIn: ["ARCHIVED", "DELETED"] };
+    // Status filtering
+    if (statusFilter === "ACTIVE") {
+      whereClause.status = "ACTIVE";
+    } else if (statusFilter === "PAUSED") {
+      whereClause.status = "PAUSED";
+    } else if (statusFilter === "ARCHIVED") {
+      whereClause.OR = [
+        { status: "ARCHIVED" },
+        { effectiveStatus: "ARCHIVED" }
+      ];
+    } else if (statusFilter === "ALL") {
+      // Return all campaigns for this account
+    } else {
+      // Default: Active and Paused only (exclude archived/deleted)
+      whereClause.status = { notIn: ["ARCHIVED", "DELETED"] };
+      whereClause.effectiveStatus = { notIn: ["ARCHIVED", "DELETED"] };
+    }
 
     return prisma.metaAdCampaign.findMany({
       where: whereClause,

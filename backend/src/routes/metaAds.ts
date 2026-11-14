@@ -379,7 +379,8 @@ router.get("/campaigns", async (req: Request, res: Response) => {
   try {
     const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
     const adAccountId = req.query.adAccountId as string | undefined;
-    const campaigns = await MetaAdsService.getCampaigns(orgId, adAccountId);
+    const status = req.query.status as string | undefined;
+    const campaigns = await MetaAdsService.getCampaigns(orgId, adAccountId, status);
     res.json({ success: true, campaigns });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching campaigns:", error.message);

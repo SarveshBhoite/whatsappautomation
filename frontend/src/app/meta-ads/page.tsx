@@ -167,6 +167,7 @@ function MetaAdsWorkspace({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"overview" | "campaigns" | "ad-sets" | "ads" | "audiences" | "conversions" | "approvals" | "reports" | "settings" | "ai-studio">("overview");
   const [dateRange, setDateRange] = useState("LAST_30_DAYS");
+  const [campaignFilter, setCampaignFilter] = useState<"ACTIVE_PAUSED" | "ACTIVE" | "PAUSED" | "ARCHIVED" | "ALL">("ACTIVE_PAUSED");
 
   const [config, setConfig] = useState<any>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -326,21 +327,29 @@ function MetaAdsWorkspace({
     }
   }, [orgId, selectedAccountId]);
 
-  const fetchCampaigns = useCallback(async (currentAccountId?: string) => {
+  const fetchCampaigns = useCallback(async (currentAccountId?: string, filterOverride?: string) => {
     try {
       const targetAcc = currentAccountId || selectedAccountId;
+      const activeFilter = filterOverride || campaignFilter;
       const queryParams = new URLSearchParams({ organizationId: orgId });
       if (targetAcc) queryParams.set("adAccountId", targetAcc);
+      if (activeFilter) queryParams.set("status", activeFilter);
 
       const res = await fetch(`${BACKEND}/api/meta-ads/campaigns?${queryParams.toString()}`);
       const data = await res.json();
       if (data.campaigns) {
-        setCampaigns(data.campaigns);
+        // Guarantee latest campaigns always stay on top
+        const sorted = [...data.campaigns].sort((a: any, b: any) => {
+          const dateA = new Date(a.createdAt || a.created_time || 0).getTime();
+          const dateB = new Date(b.createdAt || b.created_time || 0).getTime();
+          return dateB - dateA;
+        });
+        setCampaigns(sorted);
       }
     } catch (e: any) {
       console.warn("Failed to fetch Meta campaigns:", e);
     }
-  }, [orgId, selectedAccountId]);
+  }, [orgId, selectedAccountId, campaignFilter]);
 
   const handleSyncLive = async (targetAdAccountId?: string) => {
     setSyncing(true);
@@ -712,6 +721,24 @@ function MetaAdsWorkspace({
               </select>
             </div>
           )}
+
+          {/* Campaign Delivery / Status Filter */}
+          <select
+            value={campaignFilter}
+            onChange={(e) => {
+              const val = e.target.value as any;
+              setCampaignFilter(val);
+              fetchCampaigns(selectedAccountId, val);
+            }}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer"
+            title="Filter campaigns by status for selected account"
+          >
+            <option value="ACTIVE_PAUSED" className="bg-white text-slate-900">Active &amp; Paused</option>
+            <option value="ACTIVE" className="bg-white text-slate-900">Active Only</option>
+            <option value="PAUSED" className="bg-white text-slate-900">Paused Only</option>
+            <option value="ARCHIVED" className="bg-white text-slate-900">Archived Only</option>
+            <option value="ALL" className="bg-white text-slate-900">All Campaigns</option>
+          </select>
 
           {/* Date Range Selector */}
           <select
