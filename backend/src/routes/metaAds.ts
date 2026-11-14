@@ -82,6 +82,24 @@ router.get(["/callback", "/meta/callback"], async (req: Request, res: Response) 
             appSecret,
             accessToken: tokenData.access_token,
           });
+
+          // Fetch accounts and auto-activate the first ad account if none set
+          try {
+            const fetchedAccounts = await MetaAdsService.getAdAccounts(orgId);
+            if (fetchedAccounts && fetchedAccounts.length > 0) {
+              const primaryAcc = fetchedAccounts[0];
+              const primaryId = primaryAcc.adAccountId || primaryAcc.id;
+              await MetaAdsService.saveConfig(orgId, {
+                adAccountId: primaryId,
+              });
+              await prisma.metaAdAccount.updateMany({
+                where: { organizationId: orgId, adAccountId: primaryId },
+                data: { isActive: true },
+              });
+            }
+          } catch (accErr: any) {
+            console.warn("[MetaAdsRouter] Error auto-selecting ad account after OAuth:", accErr.message);
+          }
         }
       }
     }
@@ -120,6 +138,44 @@ router.get("/connectivity-check", async (req: Request, res: Response) => {
     res.json({ success: true, diagnostic });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error running connectivity check:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/meta-ads/accounts/select
+ * Select and activate a specific Meta Ad Account for this organization
+ */
+router.post("/accounts/select", async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.body?.organizationId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const adAccountId = req.body?.adAccountId as string;
+    if (!orgId) return res.status(400).json({ success: false, error: "organizationId is required" });
+    if (!adAccountId) return res.status(400).json({ success: false, error: "adAccountId is required" });
+
+    const formattedId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+
+    // 1. Update config
+    const updatedConfig = await MetaAdsService.saveConfig(orgId, {
+      adAccountId: formattedId,
+    });
+
+    // 2. Mark this ad account as active and others as inactive for this organization
+    await prisma.metaAdAccount.updateMany({
+      where: { organizationId: orgId },
+      data: { isActive: false },
+    });
+
+    await prisma.metaAdAccount.updateMany({
+      where: { organizationId: orgId, adAccountId: formattedId },
+      data: { isActive: true },
+    });
+
+    MetaAdsService.clearCache(orgId);
+
+    res.json({ success: true, config: updatedConfig, selectedAccountId: formattedId });
+  } catch (error: any) {
+    console.error("[MetaAdsRouter] Error selecting ad account:", error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

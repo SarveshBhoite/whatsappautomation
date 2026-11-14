@@ -2615,7 +2615,7 @@ print(res.json())`;
       ]);
       if (cfgRes.ok) {
         const cfg = await cfgRes.json();
-        setMetaAdsConfig(cfg);
+        setMetaAdsConfig(cfg?.config || cfg);
       }
       if (accRes.ok) {
         const accData = await accRes.json();
@@ -2625,6 +2625,40 @@ print(res.json())`;
       console.warn("Error fetching Meta Ads in settings:", err);
     } finally {
       setLoadingMetaAds(false);
+    }
+  };
+
+  const [selectingMetaAdAccount, setSelectingMetaAdAccount] = useState<string | null>(null);
+
+  const handleSelectMetaAdAccount = async (adAccountId: string) => {
+    try {
+      setSelectingMetaAdAccount(adAccountId);
+      const res = await fetch(`${BACKEND_URL}/api/meta-ads/accounts/select`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({
+          organizationId: getOrgId(),
+          adAccountId
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMetaAdsConfig(data.config?.config || data.config);
+        setMetaAdAccountsList(prev => prev.map(a => ({
+          ...a,
+          isActive: (a.adAccountId || a.id) === adAccountId
+        })));
+        alert(`Ad account (${adAccountId}) is now active for this organization!`);
+      } else {
+        alert(data.error || "Failed to select ad account");
+      }
+    } catch (err: any) {
+      alert(`Selection error: ${err.message}`);
+    } finally {
+      setSelectingMetaAdAccount(null);
     }
   };
 
@@ -5900,10 +5934,24 @@ print(res.json())`;
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {isSelected ? (
+                    <span className="px-3.5 py-1.5 bg-blue-600 text-white font-extrabold text-xs rounded-xl shadow-xs flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" /> Active in Workspace
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={selectingMetaAdAccount === accId}
+                      onClick={() => handleSelectMetaAdAccount(accId)}
+                      className="px-3.5 py-1.5 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-400 text-slate-800 hover:text-blue-700 font-bold text-xs rounded-xl transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                    >
+                      {selectingMetaAdAccount === accId ? "Activating..." : "Set as Active"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleDisconnectMetaAds}
-                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                    className="px-3 py-1.5 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-500 hover:text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
                   >
                     Disconnect
                   </button>

@@ -508,9 +508,8 @@ function MetaAdsWorkspace({
   }
 
   const isMetaConnected = Boolean(
-    config?.accessToken &&
-    config?.systemStatus !== "DISCONNECTED" &&
-    (config?.adAccountId || accounts.some((a: any) => a.isActive !== false))
+    (config?.accessToken && config?.systemStatus !== "DISCONNECTED") ||
+    accounts.length > 0
   );
 
   if (!isMetaConnected) {
