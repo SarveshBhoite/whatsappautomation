@@ -1583,18 +1583,21 @@ export class MetaAdsService {
   /**
    * Fetch Custom & Lookalike Audiences from Meta Graph API
    */
-  static async getAudiences(organizationId: string) {
+  static async getAudiences(organizationId: string, adAccountId?: string) {
     const config = await this.getConfig(organizationId);
-    if (!config.accessToken || !config.adAccountId) return [];
+    if (!config.accessToken) return [];
 
-    const formattedAccountId = config.adAccountId.startsWith("act_")
-      ? config.adAccountId
-      : `act_${config.adAccountId}`;
+    let targetAccountId = adAccountId || config.adAccountId;
+    if (!targetAccountId) return [];
+
+    const formattedAccountId = targetAccountId.startsWith("act_")
+      ? targetAccountId
+      : `act_${targetAccountId}`;
 
     try {
       const resp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/customaudiences`, {
         params: {
-          fields: "id,name,description,subtype,approximate_count,rule,lookalike_spec",
+          fields: "id,name,description,subtype,approximate_count_lower_bound,approximate_count_upper_bound,operation_status",
           access_token: config.accessToken,
         },
       });
@@ -1606,7 +1609,7 @@ export class MetaAdsService {
   }
 
   /**
-   * Fetch Ad Images & Ad Videos from Meta Media Assets Library
+   * Fetch live media assets (images, videos) for creative picker
    */
   static async getMediaAssets(organizationId: string) {
     const config = await this.getConfig(organizationId);

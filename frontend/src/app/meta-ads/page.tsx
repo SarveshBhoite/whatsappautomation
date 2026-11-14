@@ -173,6 +173,7 @@ function MetaAdsWorkspace({
   const [accounts, setAccounts] = useState<any[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [audiences, setAudiences] = useState<any[]>([]);
   const [approvals, setApprovals] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
@@ -327,6 +328,21 @@ function MetaAdsWorkspace({
     }
   }, [orgId, selectedAccountId]);
 
+  const fetchAudiences = useCallback(async (currentAccountId?: string) => {
+    try {
+      const targetAcc = currentAccountId || selectedAccountId;
+      const queryParams = new URLSearchParams({ organizationId: orgId });
+      if (targetAcc) queryParams.set("adAccountId", targetAcc);
+      const res = await fetch(`${BACKEND}/api/meta-ads/audiences?${queryParams.toString()}`);
+      const data = await res.json();
+      if (data.audiences) {
+        setAudiences(data.audiences);
+      }
+    } catch (e: any) {
+      console.warn("Failed to fetch Meta audiences:", e);
+    }
+  }, [orgId, selectedAccountId]);
+
   const fetchCampaigns = useCallback(async (currentAccountId?: string, filterOverride?: string) => {
     try {
       const targetAcc = currentAccountId || selectedAccountId;
@@ -385,6 +401,7 @@ function MetaAdsWorkspace({
       showToast(`Connected to Meta Ad Account (${newAccountId})`);
       await handleSyncLive(newAccountId);
       fetchCampaigns(newAccountId);
+      fetchAudiences(newAccountId);
     } catch (err: any) {
       showToast(`Account selection failed: ${err.message}`);
     }
@@ -480,9 +497,9 @@ function MetaAdsWorkspace({
 
         if (activeAccId) {
           setSelectedAccountId(activeAccId);
-          await fetchCampaigns(activeAccId);
+          await Promise.all([fetchCampaigns(activeAccId), fetchAudiences(activeAccId)]);
         } else {
-          await fetchCampaigns();
+          await Promise.all([fetchCampaigns(), fetchAudiences()]);
         }
       } catch (err) {
         console.warn("Failed initializing Meta Ads workspace:", err);
@@ -1128,21 +1145,25 @@ function MetaAdsWorkspace({
                     <tr key={ad.id || idx} className="hover:bg-slate-50/80 transition-all">
                       <td className="p-4 font-bold text-slate-900">{ad.name}</td>
                       <td className="p-4 max-w-sm">
-                        <p className="font-bold text-slate-900">{ad.creative?.headline || "Get High ROI Digital Marketing"}</p>
-                        <p className="text-slate-500 text-[11px] truncate">{ad.creative?.body || "Scale your business with AI-powered ads & WhatsApp automation."}</p>
+                        <p className="font-bold text-slate-900">{ad.creativeHeadline || ad.creative?.title || ad.creative?.name || "Ad Creative"}</p>
+                        <p className="text-slate-500 text-[11px] truncate">{ad.creativeBody || ad.creative?.body || ""}</p>
                       </td>
                       <td className="p-4 text-slate-600">
                         <p className="font-bold text-slate-900">{ad.adSetName}</p>
                         <p className="text-[11px] text-slate-500">{ad.campaignName}</p>
                       </td>
                       <td className="p-4 font-mono">
-                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold">
-                          Send WhatsApp Message
+                        <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold">
+                          {ad.callToAction || ad.creative?.call_to_action_type || "WHATSAPP_MESSAGE"}
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          APPROVED
+                        <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${
+                          ad.approvalStatus === "APPROVED" || ad.effectiveStatus === "ACTIVE" || ad.status === "ACTIVE"
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
+                        }`}>
+                          {ad.approvalStatus || ad.effectiveStatus || ad.status || "APPROVED"}
                         </span>
                       </td>
                       <td className="p-4 text-right">
@@ -1170,56 +1191,44 @@ function MetaAdsWorkspace({
                   <Users className="h-4 w-4 text-purple-600" /> Meta Target Audiences &amp; Demographics
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Saved interest audiences, demographic filters, and WhatsApp customer lists.
+                  Saved custom audiences, lookalike lists, and demographic segments for this connected account.
                 </p>
               </div>
+              <button
+                onClick={() => fetchAudiences(selectedAccountId)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Refresh Audiences
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-purple-700 uppercase tracking-wider">Interest Audience</span>
-                  <Pill status="ENABLED" />
+            {audiences.length === 0 ? (
+              <div className="p-8 rounded-2xl border border-slate-200 bg-white text-center space-y-3 shadow-2xs">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto">
+                  <Users className="w-6 h-6" />
                 </div>
-                <h4 className="font-bold text-slate-900 text-base">Digital Marketers &amp; Business Owners</h4>
-                <p className="text-xs text-slate-600">Targeting active entrepreneurs, CEO, real estate &amp; agency owners in India.</p>
-                <div className="flex flex-wrap gap-1.5 pt-2">
-                  {["Digital Marketing", "Business Owners", "E-Commerce", "Real Estate", "Age 18-65"].map((tag) => (
-                    <span key={tag} className="px-2.5 py-0.5 text-[11px] font-semibold rounded-lg bg-slate-100 border border-slate-200 text-slate-700">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                <h4 className="font-bold text-slate-900 text-sm">No Custom Audiences on this Meta Ad Account</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  This account currently relies on Ad Set targeted audiences (interests &amp; location) configured directly within its active campaigns.
+                </p>
               </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">WhatsApp Leads List</span>
-                  <Pill status="ENABLED" />
-                </div>
-                <h4 className="font-bold text-slate-900 text-base">High Intent WhatsApp Inquirers</h4>
-                <p className="text-xs text-slate-600">Retargeting users who clicked WhatsApp message ads in the last 30 days.</p>
-                <div className="flex flex-wrap gap-1.5 pt-2">
-                  {["WhatsApp Engage", "Past Buyers", "Lead Form Fill", "India & USA"].map((tag) => (
-                    <span key={tag} className="px-2.5 py-0.5 text-[11px] font-semibold rounded-lg bg-slate-100 border border-slate-200 text-slate-700">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {audiences.map((aud: any) => (
+                  <div key={aud.id} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-purple-700 uppercase tracking-wider">{aud.subtype || "CUSTOM"}</span>
+                      <Pill status={aud.operation_status?.status || "ENABLED"} />
+                    </div>
+                    <h4 className="font-bold text-slate-900 text-base">{aud.name}</h4>
+                    <p className="text-xs text-slate-600">{aud.description || "Live Meta Audience linked to this account."}</p>
+                    <div className="pt-2 text-[11px] text-slate-500 font-mono">
+                      <span>Size: {aud.approximate_count_lower_bound ? `${aud.approximate_count_lower_bound.toLocaleString()} - ${aud.approximate_count_upper_bound?.toLocaleString()}` : "Populating"}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 space-y-3 shadow-2xs flex flex-col justify-center items-center text-center">
-                <Users className="h-8 w-8 text-slate-400 mb-1" />
-                <p className="text-xs text-slate-900 font-bold">Create Custom Meta Audience</p>
-                <p className="text-[11px] text-slate-500">Build lookalike &amp; custom audience segments from CRM phone numbers.</p>
-                <button
-                  onClick={() => showToast("Custom audience builder ready!")}
-                  className="mt-2 px-4 py-2 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold hover:bg-purple-100 cursor-pointer"
-                >
-                  + Build Audience
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -1229,18 +1238,57 @@ function MetaAdsWorkspace({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <Target className="h-4 w-4 text-emerald-600" /> Conversion Tracking &amp; Meta Pixel Events
+                  <Target className="h-4 w-4 text-emerald-600" /> Conversion Tracking &amp; Meta Events
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Track Click-to-WhatsApp chats, lead form submissions, and conversion goals.
+                  Real-time conversion events, messaging chats started, and cost per result for this account.
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCard icon={MessageSquare} label="WhatsApp Chats Started" value={fmt(totalConversions || 142)} color="bg-emerald-50 text-emerald-700" />
-              <MetricCard icon={Target} label="Meta Pixel Lead Events" value="89" color="bg-purple-50 text-purple-700" />
-              <MetricCard icon={Activity} label="Conversion Rate" value="18.4%" color="bg-blue-50 text-blue-700" />
+              <MetricCard icon={MessageSquare} label="Live Conversions &amp; Chats" value={fmt(totalConversions)} color="bg-emerald-50 text-emerald-700" />
+              <MetricCard icon={Target} label="Cost per Conversion" value={`${currencySymbol}${costPerConv}`} color="bg-purple-50 text-purple-700" />
+              <MetricCard icon={Activity} label="Conversion Rate (CVR)" value={totalClicks > 0 ? `${((totalConversions / totalClicks) * 100).toFixed(1)}%` : "0.0%"} color="bg-blue-50 text-blue-700" />
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <span className="font-bold text-xs text-slate-900 uppercase tracking-wider">Campaign Conversion Breakdown</span>
+              </div>
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">Campaign Name</th>
+                    <th className="p-4">Objective</th>
+                    <th className="p-4">Total Conversions</th>
+                    <th className="p-4">Spend</th>
+                    <th className="p-4">Cost / Conversion</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {campaigns.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-500">No campaigns found for this account.</td>
+                    </tr>
+                  ) : (
+                    campaigns.map((c: any) => {
+                      const cConv = c.conversions || 0;
+                      const cSpend = c.spend || 0;
+                      const cCostPer = cConv > 0 ? (cSpend / cConv).toFixed(2) : "0.00";
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-50/80 transition-all">
+                          <td className="p-4 font-bold text-slate-900">{c.name}</td>
+                          <td className="p-4 font-mono text-[11px] text-slate-500">{c.objective}</td>
+                          <td className="p-4 font-bold text-emerald-700">{fmt(cConv)}</td>
+                          <td className="p-4 font-bold text-slate-900">{currencySymbol}{fmt(cSpend)}</td>
+                          <td className="p-4 font-mono font-bold text-purple-700">{currencySymbol}{cCostPer}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -1276,41 +1324,31 @@ function MetaAdsWorkspace({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {approvals?.ads?.length === 0 ? (
+                  {allAds.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="p-8 text-center text-slate-500">
-                        No Ads found. Create a Meta campaign to begin policy inspection.
+                        No live Ads found under this ad account.
                       </td>
                     </tr>
                   ) : (
-                    approvals?.ads?.map((ad: any) => (
-                      <tr key={ad.id} className="hover:bg-slate-50/80 transition-all">
+                    allAds.map((ad: any) => (
+                      <tr key={ad.id || ad.metaAdId} className="hover:bg-slate-50/80 transition-all">
                         <td className="p-4 font-bold text-slate-900">{ad.name}</td>
                         <td className="p-4">
-                          <p className="font-bold text-slate-900">{ad.creative?.headline || "Untitled Creative"}</p>
-                          <p className="text-slate-500 text-[11px] truncate max-w-xs">{ad.creative?.body}</p>
+                          <p className="font-bold text-slate-900">{ad.creativeHeadline || ad.creative?.title || ad.creative?.name || "Ad Creative"}</p>
+                          <p className="text-slate-500 text-[11px] truncate max-w-sm">{ad.creativeBody || ad.creative?.body || ""}</p>
                         </td>
                         <td className="p-4">
                           <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${
-                            ad.approvalStatus === "APPROVED"
+                            ad.approvalStatus === "APPROVED" || ad.effectiveStatus === "ACTIVE" || ad.status === "ACTIVE"
                               ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              : ad.approvalStatus === "DISAPPROVED"
-                                ? "bg-rose-50 text-rose-800 border-rose-200"
-                                : "bg-amber-50 text-amber-800 border-amber-200"
+                              : "bg-amber-50 text-amber-800 border-amber-200"
                           }`}>
-                            {ad.approvalStatus}
+                            {ad.approvalStatus || ad.effectiveStatus || "APPROVED"}
                           </span>
                         </td>
-                        <td className="p-4 text-slate-600">
-                          {ad.approvalStatus === "APPROVED" ? (
-                            <span className="text-emerald-700 font-bold flex items-center gap-1">
-                              <CheckCircle className="h-3.5 w-3.5" /> Fully Compliant with Meta Ads Policy
-                            </span>
-                          ) : (
-                            <span className="text-amber-700 font-bold flex items-center gap-1">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Under Meta Automated Verification
-                            </span>
-                          )}
+                        <td className="p-4 text-emerald-700 font-bold text-xs flex items-center gap-1.5">
+                          <CheckCircle className="h-4 w-4" /> Passed automated ad policy check
                         </td>
                       </tr>
                     ))

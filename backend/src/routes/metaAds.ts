@@ -619,8 +619,9 @@ router.put("/ads/:id", async (req: Request, res: Response) => {
  */
 router.get("/audiences", async (req: Request, res: Response) => {
   try {
-    const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
-    const audiences = await MetaAdsService.getAudiences(orgId);
+    const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const adAccountId = req.query.adAccountId as string | undefined;
+    const audiences = await MetaAdsService.getAudiences(orgId, adAccountId);
     res.json({ success: true, audiences });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching audiences:", error.message);
