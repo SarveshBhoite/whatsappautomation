@@ -1727,7 +1727,7 @@ export class MetaAdsService {
         const campResp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/campaigns`, {
           params: {
             effective_status: JSON.stringify(["ACTIVE", "PAUSED", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO", "IN_PROCESS", "WITH_ISSUES"]),
-            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,insights.date_preset(maximum){impressions,clicks,spend,reach,actions},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}",
+            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}",
             access_token: config.accessToken,
           },
         });
@@ -1821,8 +1821,16 @@ export class MetaAdsService {
                 },
               });
 
-              if (as.ads?.data && Array.isArray(as.ads.data)) {
+                            if (as.ads?.data && Array.isArray(as.ads.data)) {
                 for (const ad of as.ads.data) {
+                  const creativeJson = {
+                    title: ad.creative?.title || ad.creative?.name || null,
+                    body: ad.creative?.body || null,
+                    imageUrl: ad.creative?.image_url || null,
+                    callToAction: ad.creative?.call_to_action_type || null,
+                    raw: ad.creative || null,
+                  };
+
                   await prisma.metaAd.upsert({
                     where: {
                       metaAdId: ad.id,
@@ -1831,10 +1839,8 @@ export class MetaAdsService {
                       name: ad.name,
                       status: (ad.status || "PAUSED").toUpperCase(),
                       effectiveStatus: ad.effective_status || "PAUSED",
-                      creativeTitle: ad.creative?.title || ad.creative?.name || null,
-                      creativeBody: ad.creative?.body || null,
-                      creativeMediaUrl: ad.creative?.image_url || null,
-                      callToAction: ad.creative?.call_to_action_type || null,
+                      callToAction: ad.creative?.call_to_action_type || "WHATSAPP_MESSAGE",
+                      creative: creativeJson,
                     },
                     create: {
                       organizationId,
@@ -1844,11 +1850,8 @@ export class MetaAdsService {
                       name: ad.name,
                       status: (ad.status || "PAUSED").toUpperCase(),
                       effectiveStatus: ad.effective_status || "PAUSED",
-                      
-                      creativeTitle: ad.creative?.title || ad.creative?.name || null,
-                      creativeBody: ad.creative?.body || "",
-                      creativeMediaUrl: ad.creative?.image_url || null,
-                      callToAction: ad.creative?.call_to_action_type || null,
+                      callToAction: ad.creative?.call_to_action_type || "WHATSAPP_MESSAGE",
+                      creative: creativeJson,
                     },
                   });
                 }
@@ -1946,7 +1949,7 @@ export class MetaAdsService {
       try {
         const resp = await axios.get(`${META_GRAPH_BASE}/${targetMetaId}`, {
           params: {
-            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,bid_strategy,created_time,start_time,stop_time,insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,ctr,cpc,actions},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,ads{id,name,status,effective_status,creative{id,name,title,body,image_url,call_to_action_type}}}",
+            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,bid_strategy,created_time,start_time,stop_time,insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,ads{id,name,status,effective_status,creative{id,name,title,body,image_url,call_to_action_type}}}",
             access_token: config.accessToken,
           },
         });

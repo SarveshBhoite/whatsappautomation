@@ -1793,16 +1793,29 @@ function MetaAdsWorkspace({
                       <Activity className="h-4 w-4 text-blue-600" />
                       Live Action &amp; Conversion Breakdown (Meta Graph API)
                     </h4>
-                    {Array.isArray(liveMetaDetail?.insights?.data?.[0]?.actions) && liveMetaDetail.insights.data[0].actions.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                        {liveMetaDetail.insights.data[0].actions.map((act: any, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
-                            <span className="text-slate-600 font-mono text-[11px] truncate max-w-[180px]" title={act.action_type}>
-                              {act.action_type}
-                            </span>
-                            <span className="font-bold text-slate-900">{act.value}</span>
-                          </div>
-                        ))}
+                                        {Array.isArray(liveMetaDetail?.insights?.data?.[0]?.actions) && liveMetaDetail.insights.data[0].actions.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                        {liveMetaDetail.insights.data[0].actions.map((act: any, idx: number) => {
+                          const costObj = Array.isArray(liveMetaDetail.insights.data[0].cost_per_action_type)
+                            ? liveMetaDetail.insights.data[0].cost_per_action_type.find((c: any) => c.action_type === act.action_type)
+                            : null;
+                          const costStr = costObj?.value ? `₹${Number(costObj.value).toFixed(2)}` : null;
+
+                          return (
+                            <div key={idx} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between shadow-2xs">
+                              <div className="space-y-0.5 max-w-[180px] truncate">
+                                <p className="font-bold text-slate-900 text-xs truncate capitalize" title={act.action_type}>
+                                  {act.action_type.replace(/^(onsite_conversion|offsite)_/, "").replace(/_/g, " ")}
+                                </p>
+                                <p className="text-[10px] font-mono text-slate-500 truncate">{act.action_type}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="font-bold text-blue-700 text-sm">{fmt(act.value)}</p>
+                                {costStr && <p className="text-[10px] font-bold text-amber-700">{costStr} / result</p>}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500 italic p-4 bg-slate-50 rounded-xl border border-slate-200">
