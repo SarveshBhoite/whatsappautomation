@@ -1727,7 +1727,7 @@ export class MetaAdsService {
         const campResp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/campaigns`, {
           params: {
             effective_status: JSON.stringify(["ACTIVE", "PAUSED", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO", "IN_PROCESS", "WITH_ISSUES"]),
-            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,promoted_object,start_time,end_time,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}",
+            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,effective_status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,promoted_object,start_time,end_time,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}",
             access_token: config.accessToken,
           },
         });
@@ -1799,13 +1799,17 @@ export class MetaAdsService {
           // Sync Child AdSets & Ads if present
           if (lc.adsets?.data && Array.isArray(lc.adsets.data)) {
             for (const as of lc.adsets.data) {
+              const rawAdSetStatus = (as.effective_status || as.status || "PAUSED").toUpperCase();
+              const isAdSetDelivering = (cleanStatus === "ACTIVE") && (rawAdSetStatus === "ACTIVE");
+              const cleanAdSetStatus = isAdSetDelivering ? "ACTIVE" : "PAUSED";
+
               const savedAdSet = await prisma.metaAdSet.upsert({
                 where: {
                   metaAdSetId: as.id,
                 },
                 update: {
                   name: as.name,
-                  status: (as.status || "PAUSED").toUpperCase(),
+                  status: cleanAdSetStatus,
                   optimizationGoal: as.optimization_goal || "REACH",
                   destinationType: as.destination_type || "UNDEFINED",
                   billingEvent: as.billing_event || "IMPRESSIONS",
@@ -1819,7 +1823,7 @@ export class MetaAdsService {
                   adAccountId: formattedAccountId,
                   metaAdSetId: as.id,
                   name: as.name,
-                  status: (as.status || "PAUSED").toUpperCase(),
+                  status: cleanAdSetStatus,
                   optimizationGoal: as.optimization_goal || "REACH",
                   destinationType: as.destination_type || "UNDEFINED",
                   billingEvent: as.billing_event || "IMPRESSIONS",
@@ -1839,6 +1843,11 @@ export class MetaAdsService {
                     raw: ad.creative || null,
                   };
 
+                  const isDelivering = ["ACTIVE", "PAUSED"].includes((ad.effective_status || ad.status || "").toUpperCase());
+                  const adApproval = ad.effective_status === "DISAPPROVED" ? "DISAPPROVED"
+                    : ad.effective_status === "PENDING_REVIEW" || ad.effective_status === "IN_PROCESS" ? "PENDING_REVIEW"
+                    : isDelivering ? "APPROVED" : "APPROVED";
+
                   await prisma.metaAd.upsert({
                     where: {
                       metaAdId: ad.id,
@@ -1847,6 +1856,7 @@ export class MetaAdsService {
                       name: ad.name,
                       status: (ad.status || "PAUSED").toUpperCase(),
                       effectiveStatus: ad.effective_status || "PAUSED",
+                      approvalStatus: adApproval,
                       callToAction: ad.creative?.call_to_action_type || "WHATSAPP_MESSAGE",
                       creative: creativeJson,
                     },
@@ -1858,6 +1868,7 @@ export class MetaAdsService {
                       name: ad.name,
                       status: (ad.status || "PAUSED").toUpperCase(),
                       effectiveStatus: ad.effective_status || "PAUSED",
+                      approvalStatus: adApproval,
                       callToAction: ad.creative?.call_to_action_type || "WHATSAPP_MESSAGE",
                       creative: creativeJson,
                     },
