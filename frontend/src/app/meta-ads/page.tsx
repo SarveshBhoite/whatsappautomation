@@ -238,6 +238,7 @@ function MetaAdsWorkspace({
   const [previewAd, setPreviewAd] = useState<any>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewFormat, setPreviewFormat] = useState<string>("INSTAGRAM_STANDARD");
+  const [showAdvancedDev, setShowAdvancedDev] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   const currencySymbol = "₹";
@@ -948,13 +949,13 @@ function MetaAdsWorkspace({
             <Plus className="h-4 w-4" /> New Campaign
           </button>
 
-          {/* Meta Credentials Button */}
+          {/* Meta Account Settings Button */}
           <button
             onClick={() => setActiveTab('settings')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-all cursor-pointer"
           >
             <Settings className="h-4 w-4 text-blue-600 shrink-0" />
-            Meta Credentials
+            Ad Settings
           </button>
 
           {/* Disconnect Meta Button */}
@@ -1839,7 +1840,6 @@ function MetaAdsWorkspace({
         )}
 
         {/* SETTINGS TAB */}
-        {/* SETTINGS TAB */}
         {activeTab === "settings" && (
           <div className="max-w-4xl space-y-6">
             {/* Header & Status Card */}
@@ -1850,14 +1850,14 @@ function MetaAdsWorkspace({
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <h3 className="font-bold text-slate-900 text-base">Meta Advertising &amp; Graph API Settings</h3>
+                    <h3 className="font-bold text-slate-900 text-base">Connected Meta Ad Accounts &amp; Assets</h3>
                     <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                      CONNECTED
+                      CONNECTED &amp; SYNCED
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Manage active Ad Account binding, Facebook Page connection, Meta Pixel, and developer credentials.
+                    Manage active Ad Account, connected Facebook Page, and Meta Pixel for your campaigns.
                   </p>
                 </div>
               </div>
@@ -1869,7 +1869,7 @@ function MetaAdsWorkspace({
                   disabled={syncing}
                   className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs flex items-center gap-1.5 cursor-pointer"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin text-blue-600" : ""}`} /> Refresh Settings
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin text-blue-600" : ""}`} /> Refresh Status
                 </button>
                 <button
                   type="button"
@@ -1893,7 +1893,9 @@ function MetaAdsWorkspace({
                 <p className="text-base font-bold text-slate-900">
                   {accounts.find(a => a.adAccountId === selectedAccountId)?.name || "Amol Ade"}
                 </p>
-                <p className="text-xs font-mono text-slate-500">{selectedAccountId || formAdAccountId || "act_1682200832643542"}</p>
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-bold">
+                  <CheckCircle className="w-3 h-3" /> Live &amp; Ready
+                </div>
                 <div className="pt-2 text-[11px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
                   <span>Available Accounts:</span>
                   <span className="font-bold text-slate-700">{accounts.length} connected</span>
@@ -1909,10 +1911,12 @@ function MetaAdsWorkspace({
                 <p className="text-base font-bold text-slate-900">
                   {fetchedPages.find(p => p.id === formPageId)?.name || fetchedPages[0]?.name || "Jisnu Digital Solutions"}
                 </p>
-                <p className="text-xs font-mono text-slate-500">ID: {formPageId || fetchedPages[0]?.id || "Auto-detected"}</p>
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] font-bold">
+                  <CheckCircle className="w-3 h-3" /> WhatsApp &amp; Leads Enabled
+                </div>
                 <div className="pt-2 text-[11px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
-                  <span>Lead Form &amp; Messaging:</span>
-                  <span className="font-bold text-emerald-600">Enabled</span>
+                  <span>Ad Destination:</span>
+                  <span className="font-bold text-emerald-600">Active</span>
                 </div>
               </div>
 
@@ -1925,10 +1929,12 @@ function MetaAdsWorkspace({
                 <p className="text-base font-bold text-slate-900 truncate">
                   {fetchedPixels.find(px => px.id === formPixelId)?.name || fetchedPixels[0]?.name || "JISNU Digital Website Pixel"}
                 </p>
-                <p className="text-xs font-mono text-slate-500">ID: {formPixelId || fetchedPixels[0]?.id || "1380912777544016"}</p>
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[11px] font-bold">
+                  <CheckCircle className="w-3 h-3" /> Events Tracking Active
+                </div>
                 <div className="pt-2 text-[11px] text-slate-400 border-t border-slate-100 flex items-center justify-between">
-                  <span>Events Manager:</span>
-                  <span className="font-bold text-purple-600">Active</span>
+                  <span>Conversions:</span>
+                  <span className="font-bold text-purple-600">Synced</span>
                 </div>
               </div>
             </div>
@@ -1937,10 +1943,10 @@ function MetaAdsWorkspace({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl bg-blue-50/70 border border-blue-200 gap-4 shadow-2xs">
               <div className="space-y-0.5">
                 <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-blue-600" /> Facebook OAuth Quick Connect &amp; Discovery
+                  <ShieldCheck className="w-4 h-4 text-blue-600" /> 1-Click Facebook Re-Sync &amp; Discovery
                 </h4>
                 <p className="text-xs text-slate-600">
-                  Re-connect Facebook to automatically discover and refresh all new Ad Accounts, Pages, and Pixels.
+                  Connect new Ad Accounts, Pages, or Pixels created inside Meta Ads Manager automatically.
                 </p>
               </div>
               <a
@@ -1950,25 +1956,25 @@ function MetaAdsWorkspace({
                 <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                 </svg>
-                Re-Connect Facebook
+                Sync with Facebook
               </a>
             </div>
 
-            {/* Comprehensive Configuration Form */}
+            {/* Clean Account & Asset Binding Form */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-2xs space-y-5">
               <div>
                 <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                  <SlidersHorizontal className="h-4 w-4 text-slate-600" /> Workspace Account &amp; Asset Configuration
+                  <SlidersHorizontal className="h-4 w-4 text-slate-600" /> Active Workspace Accounts &amp; Assets
                 </h4>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Select which connected Ad Account, Page, and Pixel this CRM organization actively interacts with.
+                  Select which connected Meta Ad Account, Facebook Page, and Pixel this CRM actively manages.
                 </p>
               </div>
 
               <form onSubmit={handleSaveConfig} className="space-y-4">
                 {/* Row 1: Active Ad Account Selector */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Active Ad Account</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Selected Ad Account</label>
                   {accounts.length > 0 ? (
                     <select
                       value={formAdAccountId}
@@ -1980,7 +1986,7 @@ function MetaAdsWorkspace({
                     >
                       {accounts.map((a: any) => (
                         <option key={a.adAccountId} value={a.adAccountId}>
-                          {a.name} ({a.adAccountId})
+                          {a.name}
                         </option>
                       ))}
                     </select>
@@ -1989,7 +1995,7 @@ function MetaAdsWorkspace({
                       label=""
                       value={formAdAccountId}
                       onChange={(e: any) => setFormAdAccountId(e.target.value)}
-                      placeholder="act_1682200832643542"
+                      placeholder="Enter Ad Account"
                     />
                   )}
                 </div>
@@ -1997,7 +2003,7 @@ function MetaAdsWorkspace({
                 {/* Row 2: Facebook Page & Meta Pixel Selectors */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Connected Facebook Page</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Facebook Page</label>
                     {fetchedPages.length > 0 ? (
                       <select
                         value={formPageId}
@@ -2006,16 +2012,16 @@ function MetaAdsWorkspace({
                       >
                         {fetchedPages.map((p: any) => (
                           <option key={p.id} value={p.id}>
-                            {p.name} ({p.id})
+                            {p.name}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      <Input label="" value={formPageId} onChange={(e: any) => setFormPageId(e.target.value)} placeholder="1029384756" />
+                      <Input label="" value={formPageId} onChange={(e: any) => setFormPageId(e.target.value)} placeholder="Auto-detected Page" />
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Active Meta Pixel</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Meta Pixel</label>
                     {fetchedPixels.length > 0 ? (
                       <select
                         value={formPixelId}
@@ -2024,43 +2030,62 @@ function MetaAdsWorkspace({
                       >
                         {fetchedPixels.map((px: any) => (
                           <option key={px.id} value={px.id}>
-                            {px.name} ({px.id})
+                            {px.name}
                           </option>
                         ))}
                       </select>
                     ) : (
-                      <Input label="" value={formPixelId} onChange={(e: any) => setFormPixelId(e.target.value)} placeholder="9876543210" />
+                      <Input label="" value={formPixelId} onChange={(e: any) => setFormPixelId(e.target.value)} placeholder="Auto-detected Pixel" />
                     )}
                   </div>
                 </div>
 
-                {/* Row 3: Meta Permanent Access Token */}
-                <div>
-                  <Input
-                    label="Meta Graph API Access Token (Permanent / System User)"
-                    value={formToken}
-                    onChange={(e: any) => setFormToken(e.target.value)}
-                    placeholder="EAAG..."
-                    type="password"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">Kept encrypted and securely scoped to your organization.</p>
-                </div>
+                {/* Optional Developer Advanced Credentials Accordion */}
+                <div className="pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedDev(!showAdvancedDev)}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1.5 py-1 transition-colors cursor-pointer"
+                  >
+                    <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showAdvancedDev ? "rotate-90" : ""}`} />
+                    Advanced Technical Settings (API Tokens &amp; App IDs)
+                  </button>
 
-                {/* Row 4: App ID & App Secret */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    label="Meta App ID"
-                    value={formAppId}
-                    onChange={(e: any) => setFormAppId(e.target.value)}
-                    placeholder="1234567890"
-                  />
-                  <Input
-                    label="Meta App Secret"
-                    value={formAppSecret}
-                    onChange={(e: any) => setFormAppSecret(e.target.value)}
-                    placeholder="secret_key"
-                    type="password"
-                  />
+                  {showAdvancedDev && (
+                    <div className="mt-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4 animate-fadeIn">
+                      <p className="text-[11px] text-slate-500">
+                        These credentials are automatically managed via Facebook OAuth. Only update them manually if you are using custom Meta Developer apps.
+                      </p>
+
+                      {/* Meta Permanent Access Token */}
+                      <div>
+                        <Input
+                          label="Meta Access Token"
+                          value={formToken}
+                          onChange={(e: any) => setFormToken(e.target.value)}
+                          placeholder="EAAG..."
+                          type="password"
+                        />
+                      </div>
+
+                      {/* App ID & App Secret */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Input
+                          label="Meta App ID"
+                          value={formAppId}
+                          onChange={(e: any) => setFormAppId(e.target.value)}
+                          placeholder="App ID"
+                        />
+                        <Input
+                          label="Meta App Secret"
+                          value={formAppSecret}
+                          onChange={(e: any) => setFormAppSecret(e.target.value)}
+                          placeholder="App Secret"
+                          type="password"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
