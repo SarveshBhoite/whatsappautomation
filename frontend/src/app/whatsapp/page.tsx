@@ -1036,13 +1036,7 @@ export default function Dashboard() {
       }).catch((err) => console.warn("Failed to mark messages as read:", err));
     }
   };
-
-  // Auto-select first conversation on desktop when conversations list loads if none currently selected
-  useEffect(() => {
-    if (!activeConv && conversations.length > 0 && typeof window !== "undefined" && window.innerWidth >= 640) {
-      handleSelectConversation(conversations[0]);
-    }
-  }, [conversations]);
+  // Do not auto-select first conversation on load; conversations open only when explicitly clicked by user.
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

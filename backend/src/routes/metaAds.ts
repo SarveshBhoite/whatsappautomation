@@ -161,9 +161,8 @@ router.post("/accounts/select", async (req: Request, res: Response) => {
     });
 
     // 2. Mark this ad account as active and others as inactive for this organization
-    await prisma.metaAdAccount.updateMany({
+    await prisma.metaAdAccount.deleteMany({
       where: { organizationId: orgId },
-      data: { isActive: false },
     });
 
     await prisma.metaAdAccount.updateMany({
@@ -555,7 +554,11 @@ router.get("/campaigns/:id", async (req: Request, res: Response) => {
   try {
     const orgId = (req.query.organizationId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
     const campaignId = req.params.id as string;
-    const result = await MetaAdsService.getCampaignById(orgId, campaignId);
+    const datePreset = req.query.datePreset as string | undefined;
+    const since = req.query.since as string | undefined;
+    const until = req.query.until as string | undefined;
+    const dateFilter = (datePreset || (since && until)) ? { datePreset, since, until } : undefined;
+    const result = await MetaAdsService.getCampaignById(orgId, campaignId, dateFilter);
     res.json({ success: true, campaign: result.campaign, liveMeta: result.liveMeta });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching campaign:", error.message);
@@ -667,7 +670,11 @@ router.post("/sync", async (req: Request, res: Response) => {
   try {
     const orgId = req.body?.organizationId || DEFAULT_ORG_ID;
     const adAccountId = req.body?.adAccountId;
-    const result = await MetaAdsService.syncCampaigns(orgId, adAccountId);
+    const datePreset = req.body?.datePreset as string | undefined;
+    const since = req.body?.since as string | undefined;
+    const until = req.body?.until as string | undefined;
+    const dateFilter = (datePreset || (since && until)) ? { datePreset, since, until } : undefined;
+    const result = await MetaAdsService.syncCampaigns(orgId, adAccountId, dateFilter);
     res.json({ success: true, result });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error syncing campaigns:", error.message);

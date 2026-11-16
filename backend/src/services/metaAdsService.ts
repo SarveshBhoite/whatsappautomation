@@ -1681,7 +1681,11 @@ export class MetaAdsService {
   /**
    * Live Sync Campaigns & Ads from Meta Graph API
    */
-  static async syncCampaigns(organizationId: string, adAccountIdOverride?: string) {
+  static async syncCampaigns(
+    organizationId: string,
+    adAccountIdOverride?: string,
+    dateFilter?: { datePreset?: string; since?: string; until?: string }
+  ) {
     const config = await this.getConfig(organizationId);
 
     if (!config.accessToken) {
@@ -1719,6 +1723,17 @@ export class MetaAdsService {
     let syncedCount = 0;
     const validCampaignStatuses = ["ACTIVE", "PAUSED", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO", "IN_PROCESS", "WITH_ISSUES", "ARCHIVED", "DELETED"];
 
+    // Format dynamic Meta insights time window
+    let insightsModifier = "insights.date_preset(maximum)";
+    if (dateFilter?.since && dateFilter?.until) {
+      insightsModifier = `insights.time_range({'since':'${dateFilter.since}','until':'${dateFilter.until}'})`;
+    } else if (dateFilter?.datePreset) {
+      const p = dateFilter.datePreset.toLowerCase();
+      const validPresets = ["today", "yesterday", "last_7d", "last_14d", "last_28d", "last_30d", "last_90d", "this_month", "last_month", "maximum"];
+      const normalized = p === "last_7_days" ? "last_7d" : p === "last_30_days" ? "last_30d" : p === "last_90_days" ? "last_90d" : validPresets.includes(p) ? p : "maximum";
+      insightsModifier = `insights.date_preset(${normalized})`;
+    }
+
     for (const rawAccountId of targetAccountIds) {
       const formattedAccountId = rawAccountId.startsWith("act_") ? rawAccountId : `act_${rawAccountId}`;
 
@@ -1727,7 +1742,7 @@ export class MetaAdsService {
         const campResp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/campaigns`, {
           params: {
             effective_status: JSON.stringify(["ACTIVE", "PAUSED", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO", "IN_PROCESS", "WITH_ISSUES"]),
-            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,effective_status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,promoted_object,start_time,end_time,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}",
+            fields: `id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,${insightsModifier}{impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,effective_status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,promoted_object,start_time,end_time,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}`,
             access_token: config.accessToken,
           },
         });
@@ -1941,7 +1956,11 @@ export class MetaAdsService {
   /**
    * Fetch single campaign by ID
    */
-  static async getCampaignById(organizationId: string, campaignId: string) {
+  static async getCampaignById(
+    organizationId: string,
+    campaignId: string,
+    dateFilter?: { datePreset?: string; since?: string; until?: string }
+  ) {
     const config = await this.getConfig(organizationId);
 
     const campaign = await prisma.metaAdCampaign.findFirst({
@@ -1966,9 +1985,19 @@ export class MetaAdsService {
 
     if (config?.accessToken && targetMetaId && !targetMetaId.startsWith("meta_camp_")) {
       try {
+        let insightsModifier = "insights.date_preset(maximum)";
+        if (dateFilter?.since && dateFilter?.until) {
+          insightsModifier = `insights.time_range({'since':'${dateFilter.since}','until':'${dateFilter.until}'})`;
+        } else if (dateFilter?.datePreset) {
+          const p = dateFilter.datePreset.toLowerCase();
+          const validPresets = ["today", "yesterday", "last_7d", "last_14d", "last_28d", "last_30d", "last_90d", "this_month", "last_month", "maximum"];
+          const normalized = p === "last_7_days" ? "last_7d" : p === "last_30_days" ? "last_30d" : p === "last_90_days" ? "last_90d" : validPresets.includes(p) ? p : "maximum";
+          insightsModifier = `insights.date_preset(${normalized})`;
+        }
+
         const resp = await axios.get(`${META_GRAPH_BASE}/${targetMetaId}`, {
           params: {
-            fields: "id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,bid_strategy,created_time,start_time,stop_time,insights.date_preset(maximum){impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,promoted_object,attribution_spec,start_time,end_time,ads{id,name,status,effective_status,ad_review_feedback,preview_shareable_link,creative{id,name,title,body,image_url,thumbnail_url,call_to_action_type,object_story_spec,link_url}}}",
+            fields: `id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,bid_strategy,created_time,start_time,stop_time,${insightsModifier}{impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,promoted_object,attribution_spec,start_time,end_time,ads{id,name,status,effective_status,ad_review_feedback,preview_shareable_link,creative{id,name,title,body,image_url,thumbnail_url,call_to_action_type,object_story_spec,link_url}}}`,
             access_token: config.accessToken,
           },
         });

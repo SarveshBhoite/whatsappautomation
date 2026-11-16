@@ -33,10 +33,13 @@ const DATE_RANGES = [
   { label: "Today", value: "TODAY" },
   { label: "Yesterday", value: "YESTERDAY" },
   { label: "Last 7 Days", value: "LAST_7_DAYS" },
+  { label: "Last 14 Days", value: "LAST_14_DAYS" },
   { label: "Last 30 Days", value: "LAST_30_DAYS" },
   { label: "Last 90 Days", value: "LAST_90_DAYS" },
   { label: "This Month", value: "THIS_MONTH" },
   { label: "Last Month", value: "LAST_MONTH" },
+  { label: "Lifetime (Maximum)", value: "MAXIMUM" },
+  { label: "Custom Range...", value: "CUSTOM" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -166,7 +169,10 @@ function MetaAdsWorkspace({
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"overview" | "campaigns" | "ad-sets" | "ads" | "audiences" | "conversions" | "approvals" | "reports" | "settings" | "ai-studio">("overview");
-  const [dateRange, setDateRange] = useState("LAST_30_DAYS");
+  const [dateRange, setDateRange] = useState("MAXIMUM");
+  const [customSince, setCustomSince] = useState("");
+  const [customUntil, setCustomUntil] = useState("");
+  const [showCustomDateModal, setShowCustomDateModal] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState<"ACTIVE_PAUSED" | "ACTIVE" | "PAUSED" | "ARCHIVED" | "ALL">("ACTIVE_PAUSED");
 
   const [config, setConfig] = useState<any>(null);
@@ -357,17 +363,38 @@ function MetaAdsWorkspace({
     }
   }, [orgId, selectedAccountId, campaignFilter]);
 
-  const handleSyncLive = async (targetAdAccountId?: string) => {
+  const handleSyncLive = async (
+    targetAdAccountId?: string,
+    overrideDatePreset?: string,
+    overrideSince?: string,
+    overrideUntil?: string
+  ) => {
     setSyncing(true);
     try {
+      const activePreset = overrideDatePreset || dateRange;
+      const activeSince = overrideSince !== undefined ? overrideSince : customSince;
+      const activeUntil = overrideUntil !== undefined ? overrideUntil : customUntil;
+
+      const bodyPayload: any = {
+        organizationId: orgId,
+        adAccountId: targetAdAccountId || selectedAccountId,
+      };
+
+      if (activePreset === "CUSTOM" && activeSince && activeUntil) {
+        bodyPayload.since = activeSince;
+        bodyPayload.until = activeUntil;
+      } else if (activePreset && activePreset !== "CUSTOM") {
+        bodyPayload.datePreset = activePreset;
+      }
+
       const res = await fetch(`${BACKEND}/api/meta-ads/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId: orgId, adAccountId: targetAdAccountId || selectedAccountId }),
+        body: JSON.stringify(bodyPayload),
       });
       const data = await res.json();
       if (data.success) {
-        showToast(data.result?.message || "Live Meta campaigns synced cleanly! ✓");
+        showToast(data.result?.message || "Live Meta campaigns & insights synced! ✓");
         fetchCampaigns();
       } else {
         throw new Error(data.error);
@@ -404,7 +431,14 @@ function MetaAdsWorkspace({
     setFetchingDetail(true);
     setDetailModalTab("metrics");
     try {
-      const res = await fetch(`${BACKEND}/api/meta-ads/campaigns/${c.id}?organizationId=${orgId}`);
+      const qParams = new URLSearchParams({ organizationId: orgId });
+      if (dateRange === "CUSTOM" && customSince && customUntil) {
+        qParams.set("since", customSince);
+        qParams.set("until", customUntil);
+      } else if (dateRange && dateRange !== "CUSTOM") {
+        qParams.set("datePreset", dateRange);
+      }
+      const res = await fetch(`${BACKEND}/api/meta-ads/campaigns/${c.id}?${qParams.toString()}`);
       const data = await res.json();
       setSelectedCampDetail(data.campaign || c);
       setLiveMetaDetail(data.liveMeta || null);
@@ -703,7 +737,7 @@ function MetaAdsWorkspace({
                 Connect with Facebook
               </a>
               <button
-                onClick={() => setShowConfigModal(true)}
+                onClick={() => setActiveTab('settings')}
                 className="text-xs text-slate-500 hover:text-blue-600 font-bold transition-all underline decoration-slate-300 underline-offset-4 cursor-pointer"
               >
                 Or enter Meta App Credentials manually
@@ -822,13 +856,38 @@ function MetaAdsWorkspace({
           </select>
 
           {/* Date Range Selector */}
-          <select
-            value={dateRange}
-            onChange={e => setDateRange(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer"
-          >
-            {DATE_RANGES.map(d => <option key={d.value} value={d.value} className="bg-white text-slate-900">{d.label}</option>)}
-          </select>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={dateRange}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDateRange(val);
+                if (val === "CUSTOM") {
+                  setShowCustomDateModal(true);
+                } else {
+                  handleSyncLive(selectedAccountId, val);
+                }
+              }}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer"
+            >
+              {DATE_RANGES.map(d => (
+                <option key={d.value} value={d.value} className="bg-white text-slate-900">
+                  {d.label}
+                </option>
+              ))}
+            </select>
+
+            {dateRange === "CUSTOM" && customSince && customUntil && (
+              <button
+                type="button"
+                onClick={() => setShowCustomDateModal(true)}
+                className="px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-mono font-bold hover:bg-blue-100 transition-all cursor-pointer"
+                title="Edit custom date range"
+              >
+                {customSince} → {customUntil}
+              </button>
+            )}
+          </div>
 
           {/* Refresh Button */}
           <button
@@ -857,7 +916,7 @@ function MetaAdsWorkspace({
 
           {/* Meta Credentials Button */}
           <button
-            onClick={() => setShowConfigModal(true)}
+            onClick={() => setActiveTab('settings')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-all cursor-pointer"
           >
             <Settings className="h-4 w-4 text-blue-600 shrink-0" />
@@ -2075,6 +2134,58 @@ function MetaAdsWorkspace({
             fetchCampaigns();
           }}
         />
+      )}
+
+      {/* CUSTOM DATE RANGE MODAL */}
+      {showCustomDateModal && (
+        <Modal title="Select Custom Meta Insights Date Range" onClose={() => setShowCustomDateModal(false)}>
+          <div className="space-y-4">
+            <p className="text-xs text-slate-500">
+              Pick a start date (`since`) and end date (`until`) to query exact delivery metrics from Meta Graph API.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Start Date (Since)</label>
+                <input
+                  type="date"
+                  value={customSince}
+                  onChange={(e) => setCustomSince(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">End Date (Until)</label>
+                <input
+                  type="date"
+                  value={customUntil}
+                  onChange={(e) => setCustomUntil(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCustomDateModal(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!customSince || !customUntil}
+                onClick={() => {
+                  setShowCustomDateModal(false);
+                  setDateRange("CUSTOM");
+                  handleSyncLive(selectedAccountId, "CUSTOM", customSince, customUntil);
+                }}
+                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+              >
+                Apply Custom Range
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* LIVE AD PREVIEW MODAL */}
