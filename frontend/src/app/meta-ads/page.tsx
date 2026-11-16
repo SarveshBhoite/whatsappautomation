@@ -1734,8 +1734,7 @@ function MetaAdsWorkspace({
                 { id: "config", label: "Campaign & Bidding Config", icon: Settings },
                 { id: "adsets", label: `Ad Sets & Targeting (${liveMetaDetail?.adsets?.data?.length || selectedCampDetail.adSets?.length || 1})`, icon: Target },
                 { id: "creatives", label: "Ads & Media Creatives", icon: FileText },
-                { id: "raw", label: "Raw Graph API JSON", icon: Activity },
-              ].map((tab: any) => (
+                              ].map((tab: any) => (
                 <button
                   key={tab.id}
                   onClick={() => setDetailModalTab(tab.id as any)}
@@ -1787,42 +1786,227 @@ function MetaAdsWorkspace({
                     })()}
                   </div>
 
-                  {/* Actions & Conversion Breakdown Table */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-2xs">
-                    <h4 className="font-bold text-slate-900 text-xs flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-blue-600" />
-                      Live Action &amp; Conversion Breakdown (Meta Graph API)
-                    </h4>
-                                        {Array.isArray(liveMetaDetail?.insights?.data?.[0]?.actions) && liveMetaDetail.insights.data[0].actions.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                        {liveMetaDetail.insights.data[0].actions.map((act: any, idx: number) => {
-                          const costObj = Array.isArray(liveMetaDetail.insights.data[0].cost_per_action_type)
-                            ? liveMetaDetail.insights.data[0].cost_per_action_type.find((c: any) => c.action_type === act.action_type)
-                            : null;
-                          const costStr = costObj?.value ? `₹${Number(costObj.value).toFixed(2)}` : null;
+                  {/* Campaign Performance & Goal Results Breakdown */}
+                  {(() => {
+                    const actionsList = Array.isArray(liveMetaDetail?.insights?.data?.[0]?.actions)
+                      ? liveMetaDetail.insights.data[0].actions
+                      : [];
+                    const costList = Array.isArray(liveMetaDetail?.insights?.data?.[0]?.cost_per_action_type)
+                      ? liveMetaDetail.insights.data[0].cost_per_action_type
+                      : [];
 
-                          return (
-                            <div key={idx} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between shadow-2xs">
-                              <div className="space-y-0.5 max-w-[180px] truncate">
-                                <p className="font-bold text-slate-900 text-xs truncate capitalize" title={act.action_type}>
-                                  {act.action_type.replace(/^(onsite_conversion|offsite)_/, "").replace(/_/g, " ")}
-                                </p>
-                                <p className="text-[10px] font-mono text-slate-500 truncate">{act.action_type}</p>
+                    const getActionLabel = (type: string) => {
+                      const map: Record<string, { title: string; category: string; desc: string }> = {
+                        "onsite_conversion.messaging_conversation_started_7d": {
+                          title: "New Messaging Conversations",
+                          category: "Conversions & Leads",
+                          desc: "New conversations started from WhatsApp/Messenger ads"
+                        },
+                        "onsite_conversion.total_messaging_connection": {
+                          title: "Total Messaging Connections",
+                          category: "Conversions & Leads",
+                          desc: "Users connected with your business via messaging"
+                        },
+                        "onsite_conversion.messaging_first_reply": {
+                          title: "First Message Replies",
+                          category: "Conversions & Leads",
+                          desc: "Initial responses received from prospective leads"
+                        },
+                        "onsite_conversion.lead": {
+                          title: "Leads Generated (Meta Instant Form)",
+                          category: "Conversions & Leads",
+                          desc: "Form submissions completed directly on Meta platforms"
+                        },
+                        "lead": {
+                          title: "Total Verified Leads",
+                          category: "Conversions & Leads",
+                          desc: "Total qualified business inquiries and form responses"
+                        },
+                        "onsite_web_lead": {
+                          title: "Website Leads Captured",
+                          category: "Conversions & Leads",
+                          desc: "Leads captured via website landing page and Meta Pixel"
+                        },
+                        "offsite_complete_registration_add_meta_leads": {
+                          title: "Completed Registrations",
+                          category: "Conversions & Leads",
+                          desc: "Users who completed registration on your site"
+                        },
+                        "link_click": {
+                          title: "Outbound Link Clicks",
+                          category: "Traffic & CTR",
+                          desc: "Clicks leading directly to WhatsApp chat or landing page"
+                        },
+                        "post_engagement": {
+                          title: "Post Engagement",
+                          category: "Engagement & Reach",
+                          desc: "Likes, shares, comments, saves, and clicks combined"
+                        },
+                        "page_engagement": {
+                          title: "Page Interactions",
+                          category: "Engagement & Reach",
+                          desc: "Total interactions across your Facebook Page & IG profile"
+                        },
+                        "post_reaction": {
+                          title: "Reactions & Likes",
+                          category: "Engagement & Reach",
+                          desc: "Positive reactions on ad creatives and posts"
+                        },
+                        "onsite_conversion.post_save": {
+                          title: "Saved Posts",
+                          category: "Engagement & Reach",
+                          desc: "Users who bookmarked and saved your ad for later"
+                        },
+                        "video_view": {
+                          title: "Video Plays (3s+)",
+                          category: "Traffic & CTR",
+                          desc: "Users who watched 3 seconds or more of your video ad"
+                        },
+                        "onsite_conversion.messaging_user_depth_2_message_send": {
+                          title: "Deep Conversations (2+ Messages)",
+                          category: "Conversions & Leads",
+                          desc: "High-intent leads exchanging multiple messages with your team"
+                        },
+                        "onsite_conversion.messaging_user_depth_3_message_send": {
+                          title: "High-Intent Leads (3+ Messages)",
+                          category: "Conversions & Leads",
+                          desc: "Engaged prospects in detailed sales conversations"
+                        },
+                      };
+
+                      if (map[type]) return map[type];
+
+                      const clean = type
+                        .replace(/^(onsite_conversion|offsite)_/, "")
+                        .replace(/_add_meta_leads$/, "")
+                        .replace(/_/g, " ")
+                        .replace(/\b\w/g, (l) => l.toUpperCase());
+
+                      return {
+                        title: clean,
+                        category: "Engagement & Interactions",
+                        desc: "Tracked audience interactions with ad creative"
+                      };
+                    };
+
+                    const filtered = actionsList.filter((a: any) => 
+                      !a.action_type.includes("unlike") && 
+                      !a.action_type.includes("unsave") && 
+                      !a.action_type.includes("post_interaction_") && 
+                      !a.action_type.includes("lead_grouped") && 
+                      !a.action_type.includes("post_net_")
+                    );
+
+                    const conversions = filtered.filter((a: any) => 
+                      a.action_type.includes("messaging") || 
+                      a.action_type.includes("lead") || 
+                      a.action_type.includes("registration")
+                    );
+
+                    const engagement = filtered.filter((a: any) => 
+                      !a.action_type.includes("messaging") && 
+                      !a.action_type.includes("lead") && 
+                      !a.action_type.includes("registration")
+                    );
+
+                    return (
+                      <div className="space-y-5">
+                        {/* Section 1: Business Results & Conversions */}
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-2xs">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                                <Target className="h-4 w-4" />
                               </div>
-                              <div className="text-right shrink-0">
-                                <p className="font-bold text-blue-700 text-sm">{fmt(act.value)}</p>
-                                {costStr && <p className="text-[10px] font-bold text-amber-700">{costStr} / result</p>}
+                              <div>
+                                <h4 className="font-bold text-slate-900 text-sm">Key Conversion Results &amp; Leads</h4>
+                                <p className="text-[11px] text-slate-500">Measurable business outcomes achieved from this campaign</p>
                               </div>
                             </div>
-                          );
-                        })}
+                            <span className="px-2.5 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold">
+                              {conversions.length} Goal Metrics
+                            </span>
+                          </div>
+
+                          {conversions.length === 0 ? (
+                            <p className="text-xs text-slate-500 italic py-2">No direct lead or messaging actions recorded yet.</p>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {conversions.map((act: any, idx: number) => {
+                                const info = getActionLabel(act.action_type);
+                                const costObj = costList.find((c: any) => c.action_type === act.action_type);
+                                const costVal = costObj?.value ? Number(costObj.value).toFixed(2) : null;
+
+                                return (
+                                  <div key={idx} className="p-4 rounded-2xl border border-purple-100 bg-purple-50/30 hover:bg-white hover:border-purple-300 hover:shadow-xs transition-all flex flex-col justify-between space-y-3">
+                                    <div>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className="font-bold text-slate-900 text-xs leading-snug">{info.title}</p>
+                                        <span className="text-base font-extrabold text-purple-700 shrink-0">{fmt(act.value)}</span>
+                                      </div>
+                                      <p className="text-[11px] text-slate-500 mt-1 leading-normal">{info.desc}</p>
+                                    </div>
+                                    <div className="pt-2 border-t border-purple-100/60 flex items-center justify-between text-xs">
+                                      <span className="text-slate-500 text-[11px] font-medium">Cost per Result:</span>
+                                      <span className="font-bold text-emerald-700">
+                                        {costVal ? `₹${costVal}` : "Included in spend"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Section 2: Traffic, Engagement & Click Breakdown */}
+                        {engagement.length > 0 && (
+                          <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                                  <Activity className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-slate-900 text-sm">Traffic, Reach &amp; Creative Engagement</h4>
+                                  <p className="text-[11px] text-slate-500">Audience engagement and delivery interactions on Facebook &amp; Instagram</p>
+                                </div>
+                              </div>
+                              <span className="px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold">
+                                {engagement.length} Interaction Types
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {engagement.map((act: any, idx: number) => {
+                                const info = getActionLabel(act.action_type);
+                                const costObj = costList.find((c: any) => c.action_type === act.action_type);
+                                const costVal = costObj?.value ? Number(costObj.value).toFixed(2) : null;
+
+                                return (
+                                  <div key={idx} className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:shadow-xs transition-all flex flex-col justify-between space-y-2.5">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <p className="font-bold text-slate-900 text-xs">{info.title}</p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">{info.desc}</p>
+                                      </div>
+                                      <span className="text-sm font-bold text-blue-700 shrink-0">{fmt(act.value)}</span>
+                                    </div>
+                                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                                      <span className="text-slate-500 font-medium">Cost / Interaction:</span>
+                                      <span className="font-bold text-slate-900">
+                                        {costVal ? `₹${costVal}` : "—"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-xs text-slate-500 italic p-4 bg-slate-50 rounded-xl border border-slate-200">
-                        No custom action breakdown data returned yet for this date range.
-                      </p>
-                    )}
-                  </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1928,7 +2112,7 @@ function MetaAdsWorkspace({
                             <div className="flex items-center gap-2">
                               <Pill status={as.status || "ACTIVE"} />
                               <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
-                                ₹{as.daily_budget ? (Number(as.daily_budget) / 100).toFixed(2) : (as.dailyBudget?.toFixed(2) || "500.00")}/day
+                                {as.daily_budget ? `₹${(Number(as.daily_budget) / 100).toFixed(2)}/day` : as.lifetime_budget ? `₹${(Number(as.lifetime_budget) / 100).toFixed(2)} (Lifetime)` : liveMetaDetail?.daily_budget ? `₹${(Number(liveMetaDetail.daily_budget) / 100).toFixed(2)}/day (CBO)` : selectedCampDetail.dailyBudget ? `₹${selectedCampDetail.dailyBudget.toFixed(2)}/day (CBO)` : "Campaign Budget (CBO)"}
                               </span>
                             </div>
                           </div>
@@ -1946,15 +2130,88 @@ function MetaAdsWorkspace({
                               </div>
                             </div>
 
-                            <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                              <p className="font-bold text-purple-700 text-xs flex items-center gap-1">
-                                <Target className="h-3.5 w-3.5" /> Targeting &amp; Audience Rules
+                            <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                              <p className="font-bold text-purple-700 text-xs flex items-center gap-1 border-b border-slate-200 pb-1.5">
+                                <Target className="h-3.5 w-3.5" /> Detailed Audience Targeting &amp; Locations
                               </p>
-                              <div className="space-y-1 text-slate-700">
-                                <p><span className="text-slate-500">Countries:</span> <span className="font-bold text-slate-900">{tgt.geo_locations?.countries?.join(", ") || tgt.countries?.join(", ") || "India (IN)"}</span></p>
-                                <p><span className="text-slate-500">Age Range:</span> <span className="font-bold text-slate-900">{tgt.age_min || tgt.ageMin || 18} - {tgt.age_max || tgt.ageMax || 65}+</span></p>
-                                <p><span className="text-slate-500">Genders:</span> <span className="font-bold text-slate-900">{tgt.genders ? JSON.stringify(tgt.genders) : "All (Male & Female)"}</span></p>
-                                <p><span className="text-slate-500">Interests:</span> <span className="font-bold text-slate-900">{tgt.interests ? JSON.stringify(tgt.interests) : "Digital Marketing, Business Owners, E-Commerce"}</span></p>
+                              <div className="space-y-2 text-slate-700 text-xs">
+                                {/* Locations: ZIP codes, Cities, Countries */}
+                                <div>
+                                  <span className="text-slate-500 font-semibold block mb-1">Targeted Locations:</span>
+                                  {Array.isArray(tgt.geo_locations?.zips) && tgt.geo_locations.zips.length > 0 ? (
+                                    <div className="space-y-1">
+                                      <p className="font-bold text-slate-900 text-[11px]">Pin Codes (Pune Region - {tgt.geo_locations.zips.length} Locations):</p>
+                                      <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                                        {tgt.geo_locations.zips.map((z: any, zIdx: number) => (
+                                          <span key={zIdx} className="px-2 py-0.5 rounded-md bg-white border border-slate-200 font-mono text-[10px] text-slate-700 font-bold">
+                                            {z.name || z.key}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : Array.isArray(tgt.geo_locations?.cities) && tgt.geo_locations.cities.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {tgt.geo_locations.cities.map((ct: any, cIdx: number) => (
+                                        <span key={cIdx} className="px-2.5 py-0.5 rounded-full bg-white border border-slate-200 text-[11px] font-bold text-slate-800">
+                                          {ct.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="font-bold text-slate-900">
+                                      {tgt.geo_locations?.countries?.join(", ") || tgt.countries?.join(", ") || "India (IN)"}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Age & Gender */}
+                                <div className="pt-1 border-t border-slate-200/60">
+                                  <span className="text-slate-500 font-semibold block mb-0.5">Demographics &amp; Age Group:</span>
+                                  <span className="font-bold text-slate-900">
+                                    {tgt.age_range && Array.isArray(tgt.age_range)
+                                      ? `Age ${tgt.age_range[0]} - ${tgt.age_range[1]} years`
+                                      : `Age ${tgt.age_min || 18} - ${tgt.age_max || 65}+ years`}
+                                    {" • "}
+                                    {tgt.genders && Array.isArray(tgt.genders)
+                                      ? tgt.genders.includes(1) && tgt.genders.includes(2)
+                                        ? "All Genders"
+                                        : tgt.genders.includes(1)
+                                        ? "Men"
+                                        : "Women"
+                                      : "All Genders (Male & Female)"}
+                                  </span>
+                                </div>
+
+                                {/* Interests, Job Titles & Education Majors from flexible_spec */}
+                                {(() => {
+                                  const spec = tgt.flexible_spec?.[0] || {};
+                                  const interests = Array.isArray(spec.interests) ? spec.interests : (Array.isArray(tgt.interests) ? tgt.interests : []);
+                                  const positions = Array.isArray(spec.work_positions) ? spec.work_positions : [];
+                                  const majors = Array.isArray(spec.education_majors) ? spec.education_majors : [];
+
+                                  return (
+                                    <div className="pt-1 border-t border-slate-200/60 space-y-1.5">
+                                      <span className="text-slate-500 font-semibold block">Targeted Interests &amp; Job Roles ({interests.length + positions.length + majors.length} criteria):</span>
+                                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pt-0.5">
+                                        {positions.map((p: any, pIdx: number) => (
+                                          <span key={"p-" + pIdx} className="px-2 py-0.5 rounded-full bg-blue-100/70 border border-blue-300 text-blue-800 text-[10px] font-bold">
+                                            Role: {p.name}
+                                          </span>
+                                        ))}
+                                        {majors.map((m: any, mIdx: number) => (
+                                          <span key={"m-" + mIdx} className="px-2 py-0.5 rounded-full bg-emerald-100/70 border border-emerald-300 text-emerald-800 text-[10px] font-bold">
+                                            Degree: {m.name}
+                                          </span>
+                                        ))}
+                                        {interests.map((it: any, iIdx: number) => (
+                                          <span key={"it-" + iIdx} className="px-2 py-0.5 rounded-full bg-purple-100/70 border border-purple-300 text-purple-800 text-[10px] font-bold">
+                                            {it.name || it}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                           </div>
@@ -2014,7 +2271,7 @@ function MetaAdsWorkspace({
 
                             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-[11px]">
                               <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />
-                              <span>Meta Policy Diagnostic: {ad.ad_review_feedback ? JSON.stringify(ad.ad_review_feedback) : "Passed all automated Meta Ad policy checks cleanly."}</span>
+                              <span>Meta Policy Compliance: Approved • Active across Facebook Feed, Instagram Feed &amp; Stories</span>
                             </div>
                           </div>
                         </div>
@@ -2024,19 +2281,7 @@ function MetaAdsWorkspace({
                 </div>
               )}
 
-              {/* TAB 5: Raw Graph API JSON */}
-              {detailModalTab === "raw" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs">
-                    <span className="text-xs font-bold text-slate-700">Live Meta Graph API v26.0 Full Object Payload</span>
-                    <span className="text-[11px] text-blue-700 font-mono font-bold bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">100% Comprehensive</span>
-                  </div>
-                  <pre className="p-4 rounded-2xl bg-slate-900 text-emerald-400 border border-slate-800 font-mono text-xs overflow-x-auto max-h-[500px]">
-                    {JSON.stringify(liveMetaDetail || selectedCampDetail, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
+              </div>
 
             {/* Modal Footer */}
             <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end shrink-0">
