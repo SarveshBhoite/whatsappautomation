@@ -237,6 +237,7 @@ function MetaAdsWorkspace({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [previewAd, setPreviewAd] = useState<any>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewFormat, setPreviewFormat] = useState<string>("INSTAGRAM_STANDARD");
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   const currencySymbol = "₹";
@@ -406,16 +407,49 @@ function MetaAdsWorkspace({
     }
   };
 
-  const handleOpenAdPreview = async (ad: any) => {
+  const handleOpenAdPreview = async (ad: any, customFormat?: string) => {
     setPreviewAd(ad);
     setLoadingPreview(true);
+    const detectedFormat = customFormat || (
+      ad?.callToAction?.includes("INSTAGRAM") || ad?.name?.toLowerCase().includes("instagram")
+        ? "INSTAGRAM_STANDARD"
+        : "DESKTOP_FEED_STANDARD"
+    );
+    setPreviewFormat(detectedFormat);
     setPreviewHtml(null);
     try {
       const targetId = ad.metaAdId || ad.id;
-      const res = await fetch(`${BACKEND}/api/meta-ads/ads/${targetId}/preview?organizationId=${orgId}`);
+      const res = await fetch(`${BACKEND}/api/meta-ads/ads/${targetId}/preview?organizationId=${orgId}&ad_format=${detectedFormat}`);
       const data = await res.json();
       if (data.preview?.body) {
-        setPreviewHtml(data.preview.body);
+        let sanitized = data.preview.body;
+        // Extract natural width and height from Meta returned iframe tag
+        const widthMatch = sanitized.match(/width="(\d+)"/i);
+        const heightMatch = sanitized.match(/height="(\d+)"/i);
+        const naturalWidth = widthMatch ? parseInt(widthMatch[1], 10) : 0;
+        const naturalHeight = heightMatch ? parseInt(heightMatch[1], 10) : 0;
+
+        // Meta defaults Instagram Feed to ~360-400px wide, IG Stories to ~380-420px, and Desktop to ~500-540px.
+        // We set the exact pixel width so the card hugs the preview tightly without empty white space on the right.
+        let targetWidth = naturalWidth > 200 ? naturalWidth : (detectedFormat?.includes("STORY") ? 380 : detectedFormat?.includes("INSTAGRAM") ? 390 : 520);
+        let targetHeight = naturalHeight > 300 ? naturalHeight : (detectedFormat?.includes("STORY") ? 675 : 720);
+
+        // Provide ample height for expanded captions and media
+        if (targetHeight < 840 && !detectedFormat?.includes("STORY")) {
+          targetHeight = 840;
+        } else if (targetHeight < 720 && detectedFormat?.includes("STORY")) {
+          targetHeight = 720;
+        }
+
+        sanitized = sanitized.replace(/width="\d+"/i, `width="${targetWidth}"`);
+        sanitized = sanitized.replace(/height="\d+"/i, `height="${targetHeight}"`);
+        sanitized = sanitized.replace(/style="[^"]*"/i, '');
+        // Allow audio/video playback and allow smooth scrolling inside the iframe while hiding scrollbar
+        sanitized = sanitized.replace(
+          /<iframe /i, 
+          `<iframe allow="autoplay *; encrypted-media *; fullscreen *; clipboard-write *" allowfullscreen style="width:${targetWidth}px;height:${targetHeight}px;max-width:100%;border:none;display:block;margin:0 auto;scrollbar-width:none;-ms-overflow-style:none;" `
+        );
+        setPreviewHtml(sanitized);
       } else {
         setPreviewHtml(null);
       }
@@ -1390,9 +1424,22 @@ function MetaAdsWorkspace({
                   ) : (
                     allAds.map((ad: any, idx: number) => {
                       const creative = ad.creative || {};
-                      const imgUrl = ad.creativeMediaUrl || creative.image_url || creative.thumbnail_url || creative.imageUrl;
-                      const title = ad.creativeHeadline || creative.title || creative.name || ad.name;
-                      const body = ad.creativeBody || creative.body || "";
+                      const rawCr = creative.raw || creative;
+                      const oss = rawCr.object_story_spec || {};
+                      const imgUrl = 
+                        ad.creativeMediaUrl || 
+                        creative.imageUrl || 
+                        creative.thumbnailUrl || 
+                        creative.image_url || 
+                        creative.thumbnail_url || 
+                        rawCr.image_url || 
+                        rawCr.thumbnail_url || 
+                        oss.link_data?.picture || 
+                        oss.photo_data?.url || 
+                        oss.video_data?.image_url || 
+                        null;
+                      const title = ad.creativeHeadline || creative.title || rawCr.title || creative.name || rawCr.name || ad.name;
+                      const body = ad.creativeBody || creative.body || rawCr.body || oss.link_data?.message || oss.link_data?.caption || "";
                       const cta = ad.callToAction || creative.call_to_action_type || "WHATSAPP_MESSAGE";
                       const isApproved = ad.effectiveStatus === "ACTIVE" || ad.status === "ACTIVE" || ad.approvalStatus === "APPROVED" || ad.effectiveStatus === "PAUSED";
 
@@ -2191,7 +2238,7 @@ function MetaAdsWorkspace({
       {/* LIVE AD PREVIEW MODAL */}
       {previewAd && (
         <div className="fixed inset-0 z-[85] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl flex flex-col max-h-[92vh] w-full max-w-2xl overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl flex flex-col max-h-[96vh] w-full max-w-[620px] overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white shrink-0">
               <div className="flex items-center gap-3">
@@ -2213,18 +2260,46 @@ function MetaAdsWorkspace({
               </button>
             </div>
 
+            {/* Placement / Format Toggle Bar */}
+            <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+              <span className="font-bold text-slate-600 uppercase tracking-wider text-[11px]">Preview Placement:</span>
+              <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl">
+                {[
+                  { id: "INSTAGRAM_STANDARD", label: "Instagram Feed" },
+                  { id: "INSTAGRAM_STORY", label: "IG Stories" },
+                  { id: "DESKTOP_FEED_STANDARD", label: "Facebook Feed" },
+                  { id: "MOBILE_FEED_STANDARD", label: "Mobile Feed" },
+                ].map((fmt) => (
+                  <button
+                    key={fmt.id}
+                    type="button"
+                    onClick={() => handleOpenAdPreview(previewAd, fmt.id)}
+                    className={`px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                      previewFormat === fmt.id
+                        ? "bg-white text-blue-700 shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {fmt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 flex flex-col items-center justify-center">
+            <div className="flex-1 overflow-y-auto scrollbar-none p-4 sm:p-6 bg-slate-100/60 flex flex-col items-center justify-start min-h-[560px] max-h-[82vh]">
               {loadingPreview ? (
-                <div className="py-16 flex flex-col items-center justify-center gap-3 text-slate-500 text-xs">
+                <div className="py-24 flex flex-col items-center justify-center gap-3 text-slate-500 text-xs">
                   <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-                  <span>Loading authentic rendered preview from Meta Graph API...</span>
+                  <span className="font-medium">Rendering authentic ad preview from Meta Graph API...</span>
                 </div>
               ) : previewHtml ? (
-                <div
-                  className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm max-w-full overflow-hidden"
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
-                />
+                <div className="w-full flex justify-center py-2">
+                  <div
+                    className="rounded-2xl border border-slate-200 bg-white shadow-md inline-block w-fit max-w-full overflow-hidden p-0 transition-all duration-300 [&_iframe]:scrollbar-none"
+                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  />
+                </div>
               ) : (
                 /* Fallback clean creative preview card if Meta iframe is unavailable */
                 <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">

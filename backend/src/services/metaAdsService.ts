@@ -1742,7 +1742,7 @@ export class MetaAdsService {
         const campResp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/campaigns`, {
           params: {
             effective_status: JSON.stringify(["ACTIVE", "PAUSED", "PENDING_REVIEW", "DISAPPROVED", "PREAPPROVED", "PENDING_BILLING_INFO", "IN_PROCESS", "WITH_ISSUES"]),
-            fields: `id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,${insightsModifier}{impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,effective_status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,promoted_object,start_time,end_time,ads{id,name,status,effective_status,ad_review_feedback,creative{id,name,title,body,image_url,call_to_action_type}}}`,
+            fields: `id,name,objective,status,effective_status,buying_type,daily_budget,lifetime_budget,special_ad_categories,${insightsModifier}{impressions,clicks,spend,reach,frequency,ctr,cpc,cpm,actions,cost_per_action_type},adsets{id,name,status,effective_status,optimization_goal,destination_type,daily_budget,lifetime_budget,billing_event,bid_strategy,targeting,promoted_object,start_time,end_time,ads{id,name,status,effective_status,ad_review_feedback,preview_shareable_link,creative{id,name,title,body,image_url,thumbnail_url,call_to_action_type,image_crops,asset_feed_spec,object_story_spec{link_data{picture,image_hash,caption,message},photo_data{url},video_data{image_url}}}}}`,
             access_token: config.accessToken,
           },
         });
@@ -1850,10 +1850,26 @@ export class MetaAdsService {
 
                             if (as.ads?.data && Array.isArray(as.ads.data)) {
                 for (const ad of as.ads.data) {
+                  const oss = ad.creative?.object_story_spec;
+                  const extractedImg = 
+                    ad.creative?.image_url ||
+                    ad.creative?.thumbnail_url ||
+                    oss?.link_data?.picture ||
+                    oss?.photo_data?.url ||
+                    oss?.video_data?.image_url ||
+                    null;
+
+                  const extractedBody = 
+                    ad.creative?.body ||
+                    oss?.link_data?.message ||
+                    oss?.link_data?.caption ||
+                    null;
+
                   const creativeJson = {
                     title: ad.creative?.title || ad.creative?.name || null,
-                    body: ad.creative?.body || null,
-                    imageUrl: ad.creative?.image_url || null,
+                    body: extractedBody,
+                    imageUrl: extractedImg,
+                    thumbnailUrl: ad.creative?.thumbnail_url || extractedImg,
                     callToAction: ad.creative?.call_to_action_type || null,
                     raw: ad.creative || null,
                   };
