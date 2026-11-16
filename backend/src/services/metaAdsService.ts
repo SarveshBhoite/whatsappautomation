@@ -93,7 +93,8 @@ export interface CreateMetaCampaignPayload {
   adName?: string;
   adSetupMode?: string;
   adFormat?: string;
-  creativeHeadline: string;
+  creativeHeadline?: string;
+  creativeTitle?: string;
   creativeBody: string;
   creativeDescription?: string;
   creativeMediaUrl?: string;
@@ -468,38 +469,66 @@ export class MetaAdsService {
   /**
    * Fetch connected Meta Pixels
    */
-  static async getPixels(organizationId: string) {
-    const cacheKey = `${organizationId}_pixels_${organizationId}`;
+  static async getPixels(organizationId: string, specificAdAccountId?: string) {
+    const config = await this.getConfig(organizationId);
+    if (!config.accessToken) return [];
+
+    const targetAccount = specificAdAccountId || config.adAccountId;
+    const cacheKey = `${organizationId}_pixels_${targetAccount || "all"}`;
     const cached = getCached<any[]>(cacheKey);
     if (cached) return cached;
 
-    const config = await this.getConfig(organizationId);
-    if (!config.accessToken || !config.adAccountId) return [];
+    const pixelMap = new Map<string, any>();
 
-    const formattedAccountId = config.adAccountId.startsWith("act_")
-      ? config.adAccountId
-      : `act_${config.adAccountId}`;
+    // 1. Fetch from specific / active ad account
+    if (targetAccount) {
+      const formattedAccountId = targetAccount.startsWith("act_")
+        ? targetAccount
+        : `act_${targetAccount}`;
 
-    try {
-      const resp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/adspixels`, {
-        params: {
-          fields: "id,name,is_unavailable,last_fired_time",
-          access_token: config.accessToken,
-        },
-      });
-      const result = resp.data?.data || [];
-      if (result.length > 0) setCache(cacheKey, result);
-      return result;
-    } catch (err: any) {
-      const detail = err.response?.data?.error?.message || err.message;
-      console.warn(`[MetaAdsService] Failed to fetch Meta Pixels: ${detail}`);
-      return [];
+      try {
+        const resp = await axios.get(`${META_GRAPH_BASE}/${formattedAccountId}/adspixels`, {
+          params: {
+            fields: "id,name,is_unavailable,last_fired_time",
+            access_token: config.accessToken,
+          },
+        });
+        const items = resp.data?.data || [];
+        for (const px of items) {
+          if (px.id) pixelMap.set(px.id, px);
+        }
+      } catch (err: any) {
+        const detail = err.response?.data?.error?.message || err.message;
+        console.warn(`[MetaAdsService] Failed to fetch Meta Pixels for ${formattedAccountId}: ${detail}`);
+      }
     }
+
+    // 2. Also check associated businesses if user has multiple accounts / business pixels
+    try {
+      const bizResp = await axios.get(`${META_GRAPH_BASE}/me/businesses`, {
+        params: { fields: "id,name", access_token: config.accessToken },
+      });
+      const businesses = bizResp.data?.data || [];
+      for (const biz of businesses) {
+        try {
+          const bizPxResp = await axios.get(`${META_GRAPH_BASE}/${biz.id}/adspixels`, {
+            params: { fields: "id,name,is_unavailable,last_fired_time", access_token: config.accessToken },
+          });
+          const bizPixels = bizPxResp.data?.data || [];
+          for (const bp of bizPixels) {
+            if (bp.id && !pixelMap.has(bp.id)) {
+              pixelMap.set(bp.id, bp);
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    const result = Array.from(pixelMap.values());
+    if (result.length > 0) setCache(cacheKey, result);
+    return result;
   }
 
-  /**
-   * Fetch Instagram Business Accounts
-   */
   static async getInstagramAccounts(organizationId: string) {
     const config = await this.getConfig(organizationId);
     if (!config.accessToken) return [];
@@ -1815,7 +1844,7 @@ export class MetaAdsService {
                       name: ad.name,
                       status: (ad.status || "PAUSED").toUpperCase(),
                       effectiveStatus: ad.effective_status || "PAUSED",
-                      creativeHeadline: ad.creative?.title || ad.creative?.name || "Ad Creative",
+                      
                       creativeTitle: ad.creative?.title || ad.creative?.name || null,
                       creativeBody: ad.creative?.body || "",
                       creativeMediaUrl: ad.creative?.image_url || null,

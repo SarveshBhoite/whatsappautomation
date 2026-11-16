@@ -217,7 +217,8 @@ router.get("/pages", async (req: Request, res: Response) => {
 router.get("/pixels", async (req: Request, res: Response) => {
   try {
     const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
-    const pixels = await MetaAdsService.getPixels(orgId);
+    const adAccountId = req.query.adAccountId as string | undefined;
+    const pixels = await MetaAdsService.getPixels(orgId, adAccountId);
     res.json({ success: true, pixels });
   } catch (error: any) {
     console.error("[MetaAdsRouter] Error fetching pixels:", error.message);
@@ -226,10 +227,7 @@ router.get("/pixels", async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/meta-ads/instagram-accounts
- * Fetch Instagram Business Accounts connected to Pages
- */
-router.get("/instagram-accounts", async (req: Request, res: Response) => {
+ *router.get("/instagram-accounts", async (req: Request, res: Response) => {
   try {
     const orgId = (req.query.organizationId as string) || DEFAULT_ORG_ID;
     const instagramAccounts = await MetaAdsService.getInstagramAccounts(orgId);

@@ -559,6 +559,8 @@ function MetaAdsWorkspace({
   const totalImpressions = campaigns.reduce((acc, c) => acc + (c.impressions || 0), 0);
   const totalClicks = campaigns.reduce((acc, c) => acc + (c.clicks || 0), 0);
   const totalConversions = campaigns.reduce((acc, c) => acc + (c.conversions || 0), 0);
+  const totalReach = campaigns.reduce((acc, c) => acc + (c.reach || 0), 0);
+  const totalConvValue = campaigns.reduce((acc, c) => acc + (c.conversionValue || c.actionValue || 0), 0);
   const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) + "%" : "0.00%";
   const avgCpc = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : "0.00";
   const costPerConv = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : "0.00";
@@ -915,8 +917,12 @@ function MetaAdsWorkspace({
                   <Award className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-purple-700">{currencySymbol}0.00</p>
-                  <p className="text-xs font-semibold text-slate-500">Conv. Value</p>
+                  <p className="text-xl font-bold text-purple-700">
+                    {totalConvValue > 0 ? `${currencySymbol}${fmt(totalConvValue)}` : (totalReach > 0 ? fmt(totalReach) : "₹0.00")}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-500">
+                    {totalConvValue > 0 ? "Conv. Value" : "Unique Reach"}
+                  </p>
                 </div>
               </div>
             </div>
