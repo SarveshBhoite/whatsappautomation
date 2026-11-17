@@ -814,7 +814,6 @@ export default function Dashboard() {
     fetchGoogleConfig();
     fetchActiveFlow("youtube");
     fetchVideosShorts();
-    fetchAnalytics();
 
     return () => {
       socket.disconnect();
@@ -1124,15 +1123,21 @@ export default function Dashboard() {
         }
         if (data.accounts && Array.isArray(data.accounts)) {
           setYoutubeAccounts(data.accounts);
+          let chosenId = "";
           if (data.accounts.length === 0) {
             setSelectedYoutubeAccountId("");
           } else {
-            setSelectedYoutubeAccountId(prev => {
-              if (accountId && data.accounts.some((a: any) => a.id === accountId)) return accountId;
-              if (prev && data.accounts.some((a: any) => a.id === prev)) return prev;
-              const defaultAcc = data.accounts.find((a: any) => a.isDefault) || data.accounts[0];
-              return defaultAcc?.id || "";
-            });
+            const defaultAcc = (accountId && data.accounts.find((a: any) => a.id === accountId))
+              || (selectedYoutubeAccountId && data.accounts.find((a: any) => a.id === selectedYoutubeAccountId))
+              || data.accounts.find((a: any) => a.isDefault)
+              || data.accounts[0];
+            chosenId = defaultAcc?.id || "";
+            setSelectedYoutubeAccountId(chosenId);
+          }
+
+          // If active tab is analytics, trigger analytics with the resolved account ID
+          if (activeTab === "analytics") {
+            fetchAnalytics(chosenId || undefined);
           }
         }
       } else {

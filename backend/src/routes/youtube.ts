@@ -397,53 +397,64 @@ function formatDateString(date: Date): string {
 
 // Helper to get active access token for YouTube config
 async function getYoutubeAccessToken(orgId: string, accountId?: string): Promise<{ accessToken: string; config: any }> {
-  let config = accountId
-    ? await (prisma as any).youTubeConfig.findFirst({ where: { id: accountId, organizationId: orgId } })
-    : await (prisma as any).youTubeConfig.findFirst({ where: { organizationId: orgId, isDefault: true } });
-
-  if (!config) {
-    config = await (prisma as any).youTubeConfig.findFirst({
+  let configs: any[] = [];
+  if (accountId) {
+    const single = await (prisma as any).youTubeConfig.findFirst({ where: { id: accountId, organizationId: orgId } });
+    if (single) configs = [single];
+  } else {
+    // Fetch accounts prioritized by: default first, then active ones, newest updated first
+    configs = await (prisma as any).youTubeConfig.findMany({
       where: { organizationId: orgId },
-      orderBy: { updatedAt: "desc" }
+      orderBy: [
+        { isDefault: "desc" },
+        { isActive: "desc" },
+        { updatedAt: "desc" }
+      ]
     });
   }
 
-  if (!config || !config.refreshToken) {
-    if (config && config.accessToken) {
-      return { accessToken: config.accessToken, config };
-    }
+  if (!configs || configs.length === 0) {
     throw new Error("YouTube account not connected. Please go to settings and connect it first.");
   }
+
   const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    if (config.accessToken) {
+
+  let lastError: any = null;
+
+  // Iterate through available configs to find one that refreshes or already has a valid token
+  for (const config of configs) {
+    if (!config.refreshToken && config.accessToken) {
       return { accessToken: config.accessToken, config };
     }
-    throw new Error("YOUTUBE_CLIENT_ID / GOOGLE_CLIENT_ID or secrets not configured in .env");
+
+    if (config.refreshToken && clientId && clientSecret) {
+      try {
+        const accessToken = await getGoogleAccessToken(clientId, clientSecret, config.refreshToken);
+        // Ensure this successfully refreshed account is active
+        await prisma.youTubeConfig.update({
+          where: { id: config.id },
+          data: { accessToken, isActive: true }
+        });
+        return { accessToken, config: { ...config, accessToken, isActive: true } };
+      } catch (err: any) {
+        console.warn(`[YOUTUBE OAUTH] Token refresh attempt failed for config ${config.id}:`, err?.response?.data || err.message);
+        lastError = err;
+        // Mark this specific failed configuration as inactive so it doesn't block other working channels
+        await prisma.youTubeConfig.update({
+          where: { id: config.id },
+          data: { isActive: false, accessToken: "" }
+        }).catch(() => {});
+        // If there's another config, proceed to try it
+      }
+    }
   }
 
-  try {
-    const accessToken = await getGoogleAccessToken(clientId, clientSecret, config.refreshToken);
-    // Update accessToken in DB
-    await prisma.youTubeConfig.update({
-      where: { id: config.id },
-      data: { accessToken, isActive: true }
-    });
-    return { accessToken, config: { ...config, accessToken } };
-  } catch (error: any) {
-    console.error(`[YOUTUBE OAUTH] Token refresh failed for org ${orgId}:`, error?.response?.data || error.message);
-    // Automatically flag config as inactive / unlinked in DB so UI reflects disconnection immediately
-    await prisma.youTubeConfig.update({
-      where: { id: config.id },
-      data: { isActive: false, accessToken: "" }
-    }).catch(() => {});
-
-    const err: any = new Error("YouTube access token expired or revoked. Please reconnect your YouTube account in Settings.");
-    err.status = 401;
-    err.code = "YOUTUBE_DISCONNECTED";
-    throw err;
-  }
+  console.error(`[YOUTUBE OAUTH] All token refresh attempts failed for org ${orgId}:`, lastError?.response?.data || lastError?.message);
+  const err: any = new Error("YouTube access token expired or revoked. Please reconnect your YouTube account in Settings.");
+  err.status = 401;
+  err.code = "YOUTUBE_DISCONNECTED";
+  throw err;
 }
 
 // GET: Fetch YouTube Channel Analytics summary & timeline performance
