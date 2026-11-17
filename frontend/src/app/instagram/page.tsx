@@ -379,6 +379,7 @@ export default function Dashboard() {
   // Real-time Chat States
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
+  const [syncingDms, setSyncingDms] = useState(false);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -901,6 +902,27 @@ export default function Dashboard() {
   }, [selectedPlatform, activeTab]);
 
   // 2. HTTP API Calls
+  const handleSyncMetaDms = async () => {
+    const orgId = getOrgId();
+    if (!orgId) return;
+    setSyncingDms(true);
+    try {
+      const qParams = new URLSearchParams();
+      if (selectedIgAccountId) qParams.append("accountId", selectedIgAccountId);
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/sync-conversations?${qParams.toString()}`, {
+        headers: { "x-organization-id": orgId }
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchConversations();
+      }
+    } catch (e) {
+      console.warn("Failed to sync Meta DMs:", e);
+    } finally {
+      setSyncingDms(false);
+    }
+  };
+
   const fetchConversations = async (accountId?: string) => {
     const orgId = getOrgId();
     if (!orgId) {
@@ -1036,6 +1058,8 @@ export default function Dashboard() {
   const handleSwitchIgAccount = async (accountId: string) => {
     try {
       setSelectedIgAccountId(accountId);
+      setActiveConv(null);
+      setMessages([]);
       const chosen = igAccounts.find((a) => a.id === accountId);
       if (chosen) setIgConfig(chosen);
       await fetch(`${BACKEND_URL}/api/admin/instagram/set-default`, {
@@ -1456,6 +1480,16 @@ export default function Dashboard() {
                       {filteredConversations.length} active
                     </span>
                   </h2>
+                  <button
+                    type="button"
+                    onClick={handleSyncMetaDms}
+                    disabled={loadingConversations || syncingDms}
+                    title="Sync existing & new DMs from Meta Graph API"
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-all shadow-2xs cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${(loadingConversations || syncingDms) ? "animate-spin text-pink-600" : ""}`} />
+                    <span className="text-[10px] font-bold text-slate-700 hidden sm:inline">{syncingDms ? "Syncing..." : "Sync DMs"}</span>
+                  </button>
                 </div>
 
                 {/* Conversation items list */}
@@ -1485,13 +1519,12 @@ export default function Dashboard() {
                               Connect your Instagram Professional or Business account to view and respond to Direct Messages.
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab("profile")}
-                            className="mt-1 px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                          <a
+                            href="/settings?tab=instagram"
+                            className="mt-1 px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-xs font-semibold shadow-xs transition-all cursor-pointer inline-block"
                           >
                             Connect Instagram
-                          </button>
+                          </a>
                         </>
                       ) : (
                         <p className="text-xs">No active {isInstagramTab ? "Instagram" : "WhatsApp"} chats found.</p>
@@ -2048,13 +2081,12 @@ export default function Dashboard() {
                           <p className="text-sm text-slate-500 leading-relaxed max-w-sm">
                             Connect your Instagram Professional or Creator account in Profile & API Config to start syncing DMs and automated replies.
                           </p>
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab("profile")}
-                            className="mt-2 px-5 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-xl text-sm font-bold shadow-md shadow-pink-500/20 transition-all cursor-pointer"
+                          <a
+                            href="/settings?tab=instagram"
+                            className="mt-2 px-5 py-2.5 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white rounded-xl text-sm font-bold shadow-md shadow-pink-500/20 transition-all cursor-pointer inline-block"
                           >
-                            Connect Account
-                          </button>
+                            Connect in Settings
+                          </a>
                         </>
                       ) : (
                         <>
@@ -2082,7 +2114,7 @@ export default function Dashboard() {
         {/* TAB 3: PROFILE & API CONFIG */}
         {activeTab === "profile" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <InstagramProfilePage />
+            <InstagramProfilePage onConfigUpdated={() => { fetchInstagramConfig(); fetchConversations(); }} />
           </div>
         )}
 

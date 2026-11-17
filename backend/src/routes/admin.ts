@@ -2092,6 +2092,141 @@ router.post("/instagram/disconnect", async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/admin/instagram/sync-conversations
+// Sync past and current Instagram conversations/DMs from Meta Graph API
+router.get("/instagram/sync-conversations", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.query;
+
+    let igConfig = null;
+    if (accountId) {
+      igConfig = await prisma.instagramConfig.findFirst({
+        where: {
+          organizationId,
+          isActive: true,
+          OR: [
+            { id: String(accountId) },
+            { instagramAccountId: String(accountId) }
+          ]
+        }
+      });
+    }
+
+    if (!igConfig) {
+      igConfig = await prisma.instagramConfig.findFirst({
+        where: { organizationId, isActive: true },
+        orderBy: { isDefault: "desc" },
+      });
+    }
+
+    if (!igConfig || !igConfig.pageAccessToken) {
+      return res.status(400).json({ success: false, error: "No active Instagram account with access token found" });
+    }
+
+    const token = igConfig.pageAccessToken;
+    const igAccountId = igConfig.instagramAccountId;
+    const pageId = igConfig.pageId;
+
+    let syncedCount = 0;
+
+    // 1. Query Meta Graph API for Instagram conversations:
+    // Can query /{pageId}/conversations?platform=instagram or /me/conversations?platform=instagram
+    const candidates = [pageId, "me"].filter(Boolean);
+    let convList: any[] = [];
+
+    for (const targetId of candidates) {
+      try {
+        const resp = await axios.get(`https://graph.facebook.com/v21.0/${targetId}/conversations`, {
+          params: {
+            platform: "instagram",
+            fields: "id,updated_time,participants,messages{id,created_time,from,to,message}",
+            access_token: token,
+          },
+        });
+        if (resp.data?.data && Array.isArray(resp.data.data)) {
+          convList = resp.data.data;
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`[IG SYNC DMS] Query on ${targetId}/conversations notice:`, err?.response?.data?.error?.message || err.message);
+      }
+    }
+
+    for (const c of convList) {
+      const participants = c.participants?.data || [];
+      // Find customer (participant who is NOT our igAccountId)
+      const customer = participants.find((p: any) => p.id !== igAccountId && p.id !== pageId) || participants[0];
+      if (!customer) continue;
+
+      const customerPhone = customer.id;
+      const customerName = customer.username ? `@${customer.username}` : customer.name || `Instagram User (${customerPhone.slice(-4)})`;
+
+      let conversation = await prisma.conversation.findFirst({
+        where: {
+          organizationId,
+          platform: "instagram",
+          customerPhone,
+          OR: [
+            { accountHandle: igConfig.username || igAccountId },
+            { accountHandle: igAccountId },
+            ...(igConfig.username ? [{ accountHandle: igConfig.username }] : []),
+            { accountHandle: null }
+          ]
+        }
+      });
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            organizationId,
+            platform: "instagram",
+            customerPhone,
+            customerName,
+            accountHandle: igConfig.username || igAccountId,
+            isBotPaused: false,
+          }
+        });
+      }
+
+      // Sync recent messages
+      const msgs = c.messages?.data || [];
+      for (const m of msgs) {
+        const mid = m.id;
+        const exists = await prisma.message.findFirst({
+          where: { waMessageId: mid }
+        });
+        if (!exists) {
+          const isOutbound = m.from?.id === igAccountId || m.from?.id === pageId;
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction: isOutbound ? "outbound" : "inbound",
+              messageType: "text",
+              content: m.message || "",
+              waMessageId: mid,
+              status: isOutbound ? "sent" : "delivered",
+              createdAt: m.created_time ? new Date(m.created_time) : new Date(),
+              senderName: isOutbound ? (igConfig.name || "Agent") : customerName,
+            }
+          });
+          syncedCount++;
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Synced ${convList.length} conversations and ${syncedCount} messages from Instagram.`,
+      conversationsCount: convList.length,
+      syncedMessagesCount: syncedCount,
+    });
+  } catch (error: any) {
+    console.error("[IG SYNC DMS] Error:", error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // In-memory real-time store for Instagram comments automation feed
 export const instagramCommentsFeed: Array<{
   id: string;

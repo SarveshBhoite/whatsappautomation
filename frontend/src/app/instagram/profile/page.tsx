@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect } from "react";
 import {
   User,
@@ -8,9 +6,10 @@ import {
   ShieldCheck,
   Key,
   RefreshCw,
-  Check,
   ExternalLink,
-  Sparkles
+  SlidersHorizontal,
+  Save,
+  Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +24,7 @@ const getOrgId = (): string => {
   return "";
 };
 
-export default function InstagramProfilePage() {
+export default function InstagramProfilePage({ onConfigUpdated }: { onConfigUpdated?: () => void }) {
   const [liveProfile, setLiveProfile] = useState<{
     followers_count?: number;
     media_count?: number;
@@ -36,14 +35,20 @@ export default function InstagramProfilePage() {
   }>({});
   const [imgError, setImgError] = useState<boolean>(false);
   const [config, setConfig] = useState<{
+    id?: string;
     instagramAccountId: string;
-    accessToken: string;
+    pageId: string;
+    pageAccessToken: string;
+    webhookVerifyToken?: string;
   }>({
     instagramAccountId: "",
-    accessToken: "",
+    pageId: "",
+    pageAccessToken: "",
   });
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [showManualForm, setShowManualForm] = useState<boolean>(false);
 
   const fetchProfileConfig = async () => {
     setRefreshing(true);
@@ -56,8 +61,11 @@ export default function InstagramProfilePage() {
         const data = await res.json();
         if (data.config) {
           setConfig({
+            id: data.config.id,
             instagramAccountId: data.config.instagramAccountId || "",
-            accessToken: data.config.pageAccessToken || "",
+            pageId: data.config.pageId || "",
+            pageAccessToken: data.config.pageAccessToken || "",
+            webhookVerifyToken: data.config.webhookVerifyToken || "",
           });
         }
         if (data.liveProfile) {
@@ -84,6 +92,49 @@ export default function InstagramProfilePage() {
     fetchProfileConfig();
   }, []);
 
+  const handleSaveManualConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaveStatus("saving");
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/admin/instagram/config`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify(config)
+      });
+      if (res.ok) {
+        setSaveStatus("success");
+        setTimeout(() => setSaveStatus("idle"), 3000);
+        await fetchProfileConfig();
+        if (onConfigUpdated) onConfigUpdated();
+      } else {
+        setSaveStatus("error");
+      }
+    } catch {
+      setSaveStatus("error");
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("Are you sure you want to disconnect this Instagram account?")) return;
+    try {
+      await fetch(`${BACKEND_URL}/api/admin/instagram/disconnect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId()
+        },
+        body: JSON.stringify({ accountId: config.instagramAccountId })
+      });
+      await fetchProfileConfig();
+      if (onConfigUpdated) onConfigUpdated();
+    } catch (err) {
+      console.warn("Failed to disconnect Instagram:", err);
+    }
+  };
+
   return (
     <div className="flex-1 bg-slate-50 text-slate-900 flex flex-col font-sans overflow-hidden">
       {/* Header Bar */}
@@ -96,25 +147,37 @@ export default function InstagramProfilePage() {
             <h1 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
               Instagram Profile Overview
               <Badge variant="brand" className="text-[10px] font-mono">
-                Verified Business
+                Meta Graph v21.0
               </Badge>
             </h1>
             <p className="text-xs text-slate-500">
-              Live Meta Graph API profile metrics and connected business account details
+              Live Meta Graph API account details, metrics, and webhook credentials
             </p>
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchProfileConfig}
-          disabled={refreshing}
-          className="border-slate-200 text-slate-700"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-pink-600" : ""}`} />
-          Sync Profile Stats
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchProfileConfig}
+            disabled={refreshing}
+            className="border-slate-200 text-slate-700 cursor-pointer"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-pink-600" : ""}`} />
+            Sync Stats
+          </Button>
+
+          {config.instagramAccountId && (
+            <button
+              type="button"
+              onClick={handleDisconnect}
+              className="px-3.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all cursor-pointer"
+            >
+              Disconnect
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main Page Layout */}
@@ -162,7 +225,9 @@ export default function InstagramProfilePage() {
                 )}
 
                 <p className="text-xs text-slate-500">
-                  {config.instagramAccountId ? "Official Instagram Business Account connected to CRM Webhook engine" : "Link your Meta Page and Instagram Account in Settings to view metrics."}
+                  {config.instagramAccountId
+                    ? "Official Instagram Business Account connected to CRM Webhook & AI engine"
+                    : "Connect your Instagram Business Account from the Settings page to view live metrics."}
                 </p>
                 {config.instagramAccountId && (
                   <p className="text-[11px] text-slate-400 font-mono pt-0.5">
@@ -171,9 +236,12 @@ export default function InstagramProfilePage() {
                 )}
               </div>
             </div>
-            <Badge variant={config.instagramAccountId ? "success" : "outline"} className="text-xs shrink-0">
-              {config.instagramAccountId ? "Connected & Verified" : "Not Configured"}
-            </Badge>
+
+            <div className="flex items-center gap-2">
+              <Badge variant={config.instagramAccountId ? "success" : "outline"} className="text-xs shrink-0">
+                {config.instagramAccountId ? "Connected & Verified" : "Not Configured"}
+              </Badge>
+            </div>
           </div>
 
           {/* Account Metrics Grid */}
@@ -205,6 +273,104 @@ export default function InstagramProfilePage() {
               <span className="text-sm font-bold text-amber-700 block pt-1">Graph v21.0</span>
             </div>
           </div>
+        </div>
+
+        {/* Manual Credentials Accordion */}
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-slate-600" />
+                Manual Credentials &amp; Webhook Setup
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                For custom Meta Developer applications or manual token configuration
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowManualForm(!showManualForm)}
+              className="text-xs font-bold text-pink-600 hover:text-pink-700 cursor-pointer"
+            >
+              {showManualForm ? "Hide" : "Show"}
+            </button>
+          </div>
+
+          {showManualForm && (
+            <div className="space-y-6 pt-2 animate-fadeIn">
+              <form onSubmit={handleSaveManualConfig} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Instagram Business Account ID</label>
+                  <input
+                    type="text"
+                    value={config.instagramAccountId}
+                    onChange={(e) => setConfig({ ...config, instagramAccountId: e.target.value })}
+                    placeholder="e.g. 17841401234567890"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Facebook Page ID</label>
+                  <input
+                    type="text"
+                    value={config.pageId}
+                    onChange={(e) => setConfig({ ...config, pageId: e.target.value })}
+                    placeholder="e.g. 10203040506070"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-semibold focus:bg-white focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Page Access Token</label>
+                  <textarea
+                    value={config.pageAccessToken}
+                    onChange={(e) => setConfig({ ...config, pageAccessToken: e.target.value })}
+                    placeholder="Paste permanent Meta Page Access Token here"
+                    rows={3}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-pink-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-xs text-slate-500">
+                    {saveStatus === "success" && <span className="text-emerald-600 font-bold">✓ Saved successfully!</span>}
+                    {saveStatus === "error" && <span className="text-rose-600 font-bold">Failed to save credentials.</span>}
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={saveStatus === "saving"}
+                    className="px-5 py-2 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {saveStatus === "saving" ? "Saving..." : "Save Credentials"}
+                  </button>
+                </div>
+              </form>
+
+              {/* Webhook Configuration Details */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                  <Database className="h-3.5 w-3.5 text-pink-600" />
+                  Meta Developer Console Webhook Parameters
+                </h4>
+                <div className="space-y-2 text-xs">
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500 uppercase block">Callback URL</span>
+                    <span className="font-mono text-slate-800 text-[11px] select-all bg-white px-2 py-1 rounded border border-slate-200 block truncate">
+                      {`${BACKEND_URL}/api/webhook/instagram`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500 uppercase block">Verify Token</span>
+                    <span className="font-mono text-slate-800 text-[11px] select-all bg-white px-2 py-1 rounded border border-slate-200 block truncate">
+                      {config.webhookVerifyToken || "c7b8e192-3498-4c27-b50a-3c48520bf2a1"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
