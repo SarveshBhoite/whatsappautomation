@@ -1,3 +1,4 @@
+import { getGoogleAccessToken } from "../services/gmbSyncService";
 import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import axios from "axios";
@@ -32,45 +33,60 @@ router.get("/config", async (req: Request, res: Response) => {
       config = accounts.find((a: any) => a.isDefault) || accounts[0] || null;
     }
 
-    // Auto-backfill & auto-discover all owned (mine=true) and managed (managedByMe=true) channels
-    if (config && config.accessToken && organizationId) {
+    // Auto-backfill & auto-discover all owned (mine=true) and managed (managedByMe=true) channels with valid access token
+    if (config && organizationId) {
       try {
-        let chItems: any[] = [];
-        try {
-          const mineRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&mine=true", {
-            headers: { Authorization: `Bearer ${config.accessToken}` }
-          });
-          chItems = mineRes.data.items || [];
-        } catch (mineErr: any) {
-          console.warn("Could not fetch mine=true channels:", mineErr.message);
-        }
-
-        try {
-          const managedRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&managedByMe=true", {
-            headers: { Authorization: `Bearer ${config.accessToken}` }
-          });
-          const mItems = managedRes.data.items || [];
-          for (const mi of mItems) {
-            if (!chItems.some((c: any) => c.id === mi.id)) {
-              chItems.push(mi);
-            }
+        // Ensure we use a valid, refreshed access token so we never hit 401 on /channels
+        let activeToken = config.accessToken;
+        if (config.refreshToken) {
+          try {
+            const tokenRes = await getYoutubeAccessToken(organizationId, config.id);
+            activeToken = tokenRes.accessToken;
+            config.accessToken = activeToken;
+          } catch (tErr: any) {
+            console.warn("[YOUTUBE CONFIG] Token refresh notice during config fetch:", tErr?.message);
           }
-        } catch (managedErr: any) {
-          console.warn("Could not fetch managedByMe=true channels:", managedErr.message);
         }
 
-        if (chItems.length > 0) {
-          const firstCh = chItems[0];
-          if (firstCh && (!config.channelId || !config.channelTitle)) {
-            await (prisma as any).youTubeConfig.update({
-              where: { id: config.id },
-              data: {
-                channelId: firstCh.id,
-                channelTitle: firstCh.snippet?.title || "YouTube Channel"
-              }
+        if (activeToken) {
+          let chItems: any[] = [];
+          try {
+            const mineRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&mine=true", {
+              headers: { Authorization: `Bearer ${activeToken}` }
             });
-            config.channelId = firstCh.id;
-            config.channelTitle = firstCh.snippet?.title || "YouTube Channel";
+            chItems = mineRes.data.items || [];
+          } catch (mineErr: any) {
+            // Only warn if not a generic 401 handled by refresh
+            console.warn("Could not fetch mine=true channels:", mineErr.message);
+          }
+
+          try {
+            const managedRes = await axios.get("https://www.googleapis.com/youtube/v3/channels?part=snippet,id&managedByMe=true", {
+              headers: { Authorization: `Bearer ${activeToken}` }
+            });
+            const mItems = managedRes.data.items || [];
+            for (const mi of mItems) {
+              if (!chItems.some((c: any) => c.id === mi.id)) {
+                chItems.push(mi);
+              }
+            }
+          } catch (managedErr: any) {
+            console.warn("Could not fetch managedByMe=true channels:", managedErr.message);
+          }
+
+          if (chItems.length > 0) {
+            const firstCh = chItems[0];
+            if (firstCh && (!config.channelId || !config.channelTitle)) {
+              await (prisma as any).youTubeConfig.update({
+                where: { id: config.id },
+                data: {
+                  channelId: firstCh.id,
+                  channelTitle: firstCh.snippet?.title || "YouTube Channel"
+                }
+              });
+              config.channelId = firstCh.id;
+              config.channelTitle = firstCh.snippet?.title || "YouTube Channel";
+            }
           }
         }
       } catch (err: any) {
@@ -370,7 +386,6 @@ router.get("/auth", handleOAuthConnect);
 router.get("/oauth/callback", handleOAuthCallback);
 router.get("/auth/callback", handleOAuthCallback);
 
-import { getGoogleAccessToken } from "../services/gmbSyncService";
 
 // Helper to format Date objects as YYYY-MM-DD strings
 function formatDateString(date: Date): string {
