@@ -611,8 +611,8 @@ export default function AiAgentPage() {
         </div>
 
         <div className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-2 text-[10px] text-slate-500 font-medium">
-          <div className="h-2 w-2 rounded-full bg-purple-500 animate-pulse" />
-          <span>Active Mode: {config.activeMode === "AI_AGENT" ? "AI Agent" : "Static Flow"}</span>
+          <div className={`h-2 w-2 rounded-full ${config.isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+          <span>Status: {config.isActive ? "AI Enabled" : "AI Paused"}</span>
         </div>
       </aside>
 
@@ -645,33 +645,24 @@ export default function AiAgentPage() {
             </div>
           </div>
 
-          {/* Mode Switcher Card */}
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-1.5 flex items-center justify-between sm:justify-start gap-2 shadow-xs shrink-0 self-start md:self-auto w-full sm:w-auto">
-            <div className="flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200/60 w-full sm:w-auto">
-              <button
-                onClick={() => handleSaveConfig({ activeMode: "AI_AGENT" })}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  config.activeMode === "AI_AGENT"
-                    ? "bg-purple-600 text-white shadow-xs"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                <Bot className="h-3.5 w-3.5" />
-                <span>🤖 AI Agent</span>
-              </button>
-
-              <button
-                onClick={() => handleSaveConfig({ activeMode: "STATIC_FLOW" })}
-                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  config.activeMode === "STATIC_FLOW"
-                    ? "bg-amber-500 text-slate-950 shadow-xs"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                <Layers className="h-3.5 w-3.5" />
-                <span>🌳 Static Flow</span>
-              </button>
+          {/* Live Agent Master Status */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-2 flex items-center justify-between sm:justify-start gap-2 shadow-xs shrink-0 self-start md:self-auto w-full sm:w-auto">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
+              <span className={`h-2.5 w-2.5 rounded-full ${config.isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+              <span className="text-xs font-bold text-slate-800">
+                {config.isActive ? "AI Agent System Active" : "AI Agent Disabled"}
+              </span>
             </div>
+            <button
+              onClick={() => handleSaveConfig({ isActive: !config.isActive })}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                config.isActive 
+                  ? "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200" 
+                  : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs"
+              }`}
+            >
+              {config.isActive ? "Turn Off" : "Turn On"}
+            </button>
           </div>
         </header>
 

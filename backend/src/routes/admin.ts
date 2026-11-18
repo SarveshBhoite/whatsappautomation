@@ -1947,7 +1947,6 @@ router.get("/instagram/permissions", async (req: Request, res: Response) => {
     const REQUIRED_SCOPES = [
       "instagram_basic",
       "instagram_manage_messages",
-      "instagram_manage_comments",
     ];
 
     const missingRequired = REQUIRED_SCOPES.filter((s) => !granted.includes(s));

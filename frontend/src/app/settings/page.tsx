@@ -299,7 +299,7 @@ const MediaNodeComponent = ({ data }: any) => {
 
 
 // Configure backend base URL
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname.includes("jisnudigital.com") ? "https://crmapi.jisnudigital.com" : "http://localhost:5000");
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
@@ -5479,7 +5479,7 @@ print(res.json())`;
 
                       <div className="flex flex-col gap-1 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                         <span className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Webhook Callback URL</span>
-                        <span className="text-xs text-slate-800 font-mono truncate">{`${BACKEND_URL}/api/webhook/instagram`}</span>
+                        <span className="text-xs text-slate-800 font-mono truncate">{BACKEND_URL.includes("localhost") ? "https://crmapi.jisnudigital.com/api/webhook/instagram" : `${BACKEND_URL}/api/webhook/instagram`}</span>
                       </div>
 
                       <div className="flex flex-col gap-1 bg-slate-50 p-3.5 rounded-xl border border-slate-200">

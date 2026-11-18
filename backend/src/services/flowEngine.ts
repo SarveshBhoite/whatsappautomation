@@ -88,18 +88,21 @@ export async function processChatbotFlow(conversationId: string, incomingMessage
 
     // Check Automation Mode: AI Agent Mode vs Static Button Flow Mode
     const aiConfig: any = conversation.organization?.aiAgentConfigs?.[0];
-    const isAiAgentActive = aiConfig && aiConfig.isActive !== false && aiConfig.activeMode !== "STATIC_FLOW";
-
+    
+    // Check per-platform AI configuration
     let isPlatformAiEnabled = false;
-    if (isAiAgentActive) {
+    if (aiConfig && aiConfig.isActive !== false) {
       if (isWhatsApp) {
-        isPlatformAiEnabled = aiConfig.whatsappAiEnabled !== false;
+        // If master activeMode is STATIC_FLOW, it acts as a global override unless specific platform toggle is checked
+        // Allow per-platform mode: whatsappAiEnabled determines if WhatsApp uses AI Agent or Button Flow
+        isPlatformAiEnabled = aiConfig.activeMode !== "STATIC_FLOW" && aiConfig.whatsappAiEnabled !== false;
       } else if (isInstagram) {
-        isPlatformAiEnabled = aiConfig.instagramAiEnabled !== false;
+        // For Instagram: check if Instagram AI is enabled. If disabled or master is STATIC_FLOW, it runs the Instagram button flow!
+        isPlatformAiEnabled = aiConfig.activeMode !== "STATIC_FLOW" && aiConfig.instagramAiEnabled === true;
       } else if (isYouTube) {
-        isPlatformAiEnabled = aiConfig.youtubeAiEnabled === true;
+        isPlatformAiEnabled = aiConfig.activeMode !== "STATIC_FLOW" && aiConfig.youtubeAiEnabled === true;
       } else if (isLinkedIn) {
-        isPlatformAiEnabled = aiConfig.linkedinAiEnabled === true;
+        isPlatformAiEnabled = aiConfig.activeMode !== "STATIC_FLOW" && aiConfig.linkedinAiEnabled === true;
       }
     }
 

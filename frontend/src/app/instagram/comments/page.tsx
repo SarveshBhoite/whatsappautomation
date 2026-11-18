@@ -36,7 +36,7 @@ import {
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname.includes("jisnudigital.com") ? "https://crmapi.jisnudigital.com" : "http://localhost:5000");
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {

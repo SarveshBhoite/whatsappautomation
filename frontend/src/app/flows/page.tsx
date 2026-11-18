@@ -290,7 +290,7 @@ const nodeTypes = {
 };
 
 // Configure backend base URL
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || (typeof window !== "undefined" && window.location.hostname.includes("jisnudigital.com") ? "https://crmapi.jisnudigital.com" : "http://localhost:5000");
 
 const getOrgId = (): string => {
   if (typeof window !== "undefined") {
@@ -525,6 +525,70 @@ export default function Dashboard() {
   const [flowDesc, setFlowDesc] = useState("Automated menu and routing system");
   const [flowId, setFlowId] = useState<string | null>(null);
   const [flowSaveStatus, setFlowSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+
+  // Per-Platform Automation Routing (AI Agent vs Button Flow)
+  const [aiConfig, setAiConfig] = useState<{
+    isActive: boolean;
+    activeMode: "AI_AGENT" | "STATIC_FLOW";
+    whatsappAiEnabled: boolean;
+    instagramAiEnabled: boolean;
+  }>({
+    isActive: true,
+    activeMode: "AI_AGENT",
+    whatsappAiEnabled: true,
+    instagramAiEnabled: false,
+  });
+  const [updatingMode, setUpdatingMode] = useState(false);
+
+  const fetchAiConfig = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/ai-agent/config`, {
+        headers: { "x-organization-id": getOrgId() },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const conf = data.config || data;
+        if (conf) {
+          setAiConfig({
+            isActive: conf.isActive !== false,
+            activeMode: conf.activeMode || "AI_AGENT",
+            whatsappAiEnabled: conf.whatsappAiEnabled !== false,
+            instagramAiEnabled: conf.instagramAiEnabled === true,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load AI config in flows:", e);
+    }
+  };
+
+  const handleTogglePlatformAutomation = async (platform: "whatsapp" | "instagram", mode: "AI_AGENT" | "STATIC_FLOW") => {
+    try {
+      setUpdatingMode(true);
+      const isAi = mode === "AI_AGENT";
+      const patch = platform === "whatsapp" 
+        ? { whatsappAiEnabled: isAi } 
+        : { instagramAiEnabled: isAi };
+
+      setAiConfig((prev) => ({
+        ...prev,
+        ...patch,
+      }));
+
+      await fetch(`${BACKEND_URL}/api/ai-agent/config`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-organization-id": getOrgId(),
+        },
+        body: JSON.stringify(patch),
+      });
+    } catch (err) {
+      console.warn("Error updating platform automation mode:", err);
+    } finally {
+      setUpdatingMode(false);
+    }
+  };
 
   // AI Flow Generator States
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -767,6 +831,7 @@ export default function Dashboard() {
     fetchInstagramConfig();
     fetchGoogleConfig();
     fetchActiveFlow("whatsapp");
+    fetchAiConfig();
 
     // Listen to organization switch events across the dashboard
     const handleOrgSwitch = () => {
@@ -775,6 +840,7 @@ export default function Dashboard() {
       fetchInstagramConfig();
       fetchGoogleConfig();
       fetchActiveFlow(selectedPlatform);
+      fetchAiConfig();
     };
 
     window.addEventListener("organization-switched", handleOrgSwitch);
@@ -2359,26 +2425,104 @@ export default function Dashboard() {
         {activeTab === "flows" && (
           <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
             {/* Header toolbar */}
-            <div className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between z-10 shadow-2xs">
-              <div className="flex items-center gap-3">
+            <div className="border-b border-slate-200 bg-white px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 z-10 shadow-2xs">
+              <div className="flex flex-wrap items-center gap-3">
                 <input 
                   type="text" 
                   value={flowName} 
                   onChange={(e) => setFlowName(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 font-extrabold text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-1.5 font-extrabold text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs transition-all min-w-[200px]"
                   placeholder="Flow Name..."
                 />
                 
-                <div className="h-6 w-px bg-slate-200 mx-1" />
+                <div className="h-6 w-px bg-slate-200 hidden sm:block" />
                 
-                <select
-                  value={selectedPlatform}
-                  onChange={(e) => setSelectedPlatform(e.target.value as "whatsapp" | "instagram")}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500 shadow-2xs cursor-pointer"
-                >
-                  <option value="whatsapp">WhatsApp Flow</option>
-                  <option value="instagram">Instagram Flow</option>
-                </select>
+                {/* Platform Selector */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlatform("whatsapp")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      selectedPlatform === "whatsapp"
+                        ? "bg-white text-emerald-700 shadow-xs border border-slate-200/80"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <WhatsApp className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>WhatsApp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlatform("instagram")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      selectedPlatform === "instagram"
+                        ? "bg-white text-pink-700 shadow-xs border border-slate-200/80"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Instagram className="h-3.5 w-3.5 text-pink-600" />
+                    <span>Instagram</span>
+                  </button>
+                </div>
+
+                <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+
+                {/* Per-Platform Active Mode Switcher (AI Agent vs Static Flow) */}
+                {(() => {
+                  const isCurrentPlatformAi = selectedPlatform === "whatsapp" 
+                    ? (aiConfig.whatsappAiEnabled !== false)
+                    : (aiConfig.instagramAiEnabled === true);
+
+                  return (
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/90 rounded-xl px-2.5 py-1 shadow-2xs">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        {selectedPlatform === "whatsapp" ? "WhatsApp" : "Instagram"} Engine:
+                      </span>
+                      <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          disabled={updatingMode}
+                          onClick={() => handleTogglePlatformAutomation(selectedPlatform, "AI_AGENT")}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                            isCurrentPlatformAi
+                              ? "bg-purple-600 text-white shadow-2xs"
+                              : "text-slate-500 hover:text-slate-900"
+                          }`}
+                          title={`Switch ${selectedPlatform} incoming messages to AI Agent`}
+                        >
+                          <Bot className="h-3 w-3" />
+                          <span>AI Agent</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updatingMode}
+                          onClick={() => handleTogglePlatformAutomation(selectedPlatform, "STATIC_FLOW")}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                            !isCurrentPlatformAi
+                              ? selectedPlatform === "instagram"
+                                ? "bg-pink-600 text-white shadow-2xs"
+                                : "bg-emerald-600 text-white shadow-2xs"
+                              : "text-slate-500 hover:text-slate-900"
+                          }`}
+                          title={`Switch ${selectedPlatform} incoming messages to this Static Button Flow`}
+                        >
+                          <GitMerge className="h-3 w-3" />
+                          <span>Button Flow</span>
+                        </button>
+                      </div>
+                      <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                        isCurrentPlatformAi 
+                          ? "bg-purple-100 text-purple-800" 
+                          : selectedPlatform === "instagram"
+                            ? "bg-pink-100 text-pink-800"
+                            : "bg-emerald-100 text-emerald-800"
+                      }`}>
+                        {isCurrentPlatformAi ? "Live: AI" : "Live: Flow"}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Node tools */}
