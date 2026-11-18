@@ -1813,68 +1813,70 @@ let lastMetaUserId: string = "122186284394621684";
 router.post("/instagram/embedded-signup/callback", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const { code, redirectUri, source } = req.body;
+    const { code, accessToken: directAccessToken, redirectUri, source } = req.body;
 
-    if (!code) {
-      return res.status(400).json({ error: "Missing authorization code from Meta" });
+    if (!code && !directAccessToken) {
+      return res.status(400).json({ error: "Missing authorization code or access token from Meta" });
     }
 
     const appId = process.env.META_APP_ID || "36702477879366478";
     const appSecret = process.env.META_APP_SECRET || "31a42564bf74d77abc944800042fad9a";
 
-    let accessToken = "";
+    let accessToken = directAccessToken || "";
 
-    // If request explicitly provided a non-empty redirectUri (from popup OAuth flow)
-    const isPopupFlow = source === "popup" && Boolean(redirectUri);
+    if (!accessToken && code) {
+      // If request explicitly provided a non-empty redirectUri (from popup OAuth flow)
+      const isPopupFlow = source === "popup" && Boolean(redirectUri);
 
-    if (isPopupFlow) {
-      // Flow A: Popup OAuth Dialog code requires exact matching redirect_uri
-      try {
-        console.log(`[IG EMBEDDED SIGNUP] Exchanging popup code with redirect_uri: ${redirectUri}`);
-        const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
-          params: {
-            client_id: appId,
-            client_secret: appSecret,
-            code: code,
-            redirect_uri: redirectUri,
-          },
-        });
-        accessToken = tokenResponse.data.access_token;
-      } catch (err1: any) {
-        console.warn("[IG EMBEDDED SIGNUP] Popup token exchange fallback without redirect_uri...", err1?.response?.data?.error?.message);
-        const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
-          params: {
-            client_id: appId,
-            client_secret: appSecret,
-            code: code,
-          },
-        });
-        accessToken = tokenResponse.data.access_token;
-      }
-    } else {
-      // Flow B: Native FB.login JS SDK code (must NOT pass redirect_uri)
-      try {
-        console.log("[IG EMBEDDED SIGNUP] Exchanging FB.login JS SDK code (no redirect_uri)...");
-        const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
-          params: {
-            client_id: appId,
-            client_secret: appSecret,
-            code: code,
-          },
-        });
-        accessToken = tokenResponse.data.access_token;
-      } catch (err1: any) {
-        console.warn("[IG EMBEDDED SIGNUP] SDK token exchange fallback with redirect_uri...", err1?.response?.data?.error?.message);
-        const fallbackUri = redirectUri || "https://crm.jisnudigital.com/settings?tab=instagram";
-        const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
-          params: {
-            client_id: appId,
-            client_secret: appSecret,
-            code: code,
-            redirect_uri: fallbackUri,
-          },
-        });
-        accessToken = tokenResponse.data.access_token;
+      if (isPopupFlow) {
+        // Flow A: Popup OAuth Dialog code requires exact matching redirect_uri
+        try {
+          console.log(`[IG EMBEDDED SIGNUP] Exchanging popup code with redirect_uri: ${redirectUri}`);
+          const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+            params: {
+              client_id: appId,
+              client_secret: appSecret,
+              code: code,
+              redirect_uri: redirectUri,
+            },
+          });
+          accessToken = tokenResponse.data.access_token;
+        } catch (err1: any) {
+          console.warn("[IG EMBEDDED SIGNUP] Popup token exchange fallback without redirect_uri...", err1?.response?.data?.error?.message);
+          const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+            params: {
+              client_id: appId,
+              client_secret: appSecret,
+              code: code,
+            },
+          });
+          accessToken = tokenResponse.data.access_token;
+        }
+      } else {
+        // Flow B: Native FB.login JS SDK code (must NOT pass redirect_uri)
+        try {
+          console.log("[IG EMBEDDED SIGNUP] Exchanging FB.login JS SDK code (no redirect_uri)...");
+          const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+            params: {
+              client_id: appId,
+              client_secret: appSecret,
+              code: code,
+            },
+          });
+          accessToken = tokenResponse.data.access_token;
+        } catch (err1: any) {
+          console.warn("[IG EMBEDDED SIGNUP] SDK token exchange fallback with redirect_uri...", err1?.response?.data?.error?.message);
+          const fallbackUri = redirectUri || "https://crm.jisnudigital.com/settings?tab=instagram";
+          const tokenResponse = await axios.get("https://graph.facebook.com/v21.0/oauth/access_token", {
+            params: {
+              client_id: appId,
+              client_secret: appSecret,
+              code: code,
+              redirect_uri: fallbackUri,
+            },
+          });
+          accessToken = tokenResponse.data.access_token;
+        }
       }
     }
 
