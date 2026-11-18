@@ -1436,6 +1436,19 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
           });
         }
         console.log(`[IG DISCOVERY] Synced IG account @${username} (${page.igId}) with Page "${page.name}" (${page.id}) and Page Access Token!`);
+
+        // Automatically subscribe Instagram account to Meta Webhooks for live DMs, postbacks, reactions, and comments
+        try {
+          await axios.post(`https://graph.facebook.com/v21.0/${page.igId}/subscribed_apps`, null, {
+            params: {
+              subscribed_fields: "messages,messaging_postbacks,message_reactions,comments,mentions",
+              access_token: page.access_token,
+            },
+          });
+          console.log(`[IG WEBHOOK] Successfully subscribed Instagram Account ${page.igId} to live webhooks!`);
+        } catch (subErr: any) {
+          console.warn(`[IG WEBHOOK] Notice subscribing Instagram Account ${page.igId}:`, subErr?.response?.data || subErr.message);
+        }
       }
     }
 
@@ -1502,6 +1515,19 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
           });
         }
         console.log(`[IG DISCOVERY] Successfully synced Instagram account @${username} (${igAccountId}) with Page "${matchingPage?.name || 'none'}" (${assignedPageId}) and token!`);
+
+        // Automatically subscribe Instagram account to Meta Webhooks for live DMs, postbacks, reactions, and comments
+        try {
+          await axios.post(`https://graph.facebook.com/v21.0/${igAccountId}/subscribed_apps`, null, {
+            params: {
+              subscribed_fields: "messages,messaging_postbacks,message_reactions,comments,mentions",
+              access_token: assignedPageToken,
+            },
+          });
+          console.log(`[IG WEBHOOK] Successfully subscribed Instagram Account ${igAccountId} to live webhooks!`);
+        } catch (subErr: any) {
+          console.warn(`[IG WEBHOOK] Notice subscribing Instagram Account ${igAccountId}:`, subErr?.response?.data || subErr.message);
+        }
       } catch (err: any) {
         console.warn(`[IG DISCOVERY] Error fetching details for account ${igAccountId}:`, err?.message);
       }

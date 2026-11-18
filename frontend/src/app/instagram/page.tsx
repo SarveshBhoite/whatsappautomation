@@ -313,6 +313,7 @@ interface Conversation {
   messages?: Message[];
   platform?: string;
   updatedAt: string;
+  unreadCount?: number;
 }
 
 interface WhatsAppConfig {
@@ -380,6 +381,9 @@ export default function Dashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [syncingDms, setSyncingDms] = useState(false);
+  const [chatPage, setChatPage] = useState(1);
+  const [chatTotalPages, setChatTotalPages] = useState(1);
+  const [totalChatCount, setTotalChatCount] = useState<number | null>(null);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -793,31 +797,80 @@ export default function Dashboard() {
     });
 
     // Handle Inbound/Outbound Messages
-    socket.on("new-message", (data: { conversationId: string; message: Message }) => {
-      // Append message if active conversation matches
+    socket.on("new-message", (data: { conversationId: string; message: Message; conversation?: any }) => {
       const currentActiveConv = activeConvRef.current;
-      if (currentActiveConv && currentActiveConv.id === data.conversationId) {
+      const isCurrentlyActive = currentActiveConv && currentActiveConv.id === data.conversationId;
+
+      // Append message if active conversation matches
+      if (isCurrentlyActive) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === data.message.id)) return prev;
           return [...prev, data.message];
         });
+
+        // Automatically mark message as read on backend if active chat is open
+        if (data.message.direction === "inbound") {
+          fetch(`${BACKEND_URL}/api/messages/read`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ conversationId: data.conversationId }),
+          }).catch((err) => console.warn("Failed to mark active conversation as read:", err));
+        }
       }
 
-      // Update conversations list in real-time and sort to top
+      // Update conversations list state so last message & timestamp update in real-time and jump to top of list
       setConversations((prev) => {
-        const exists = prev.some((c) => c.id === data.conversationId);
-        if (!exists) {
-          fetchConversations();
-          return prev;
+        const index = prev.findIndex((c) => c.id === data.conversationId);
+        const msgTime = data.message.createdAt || new Date().toISOString();
+        const isInbound = data.message.direction === "inbound";
+
+        if (index !== -1) {
+          const currentConv = prev[index];
+          const currentUnread = currentConv.unreadCount || 0;
+          const nextUnread = isCurrentlyActive ? 0 : isInbound ? currentUnread + 1 : currentUnread;
+
+          const updatedTarget: Conversation = {
+            ...currentConv,
+            messages: [data.message],
+            updatedAt: msgTime,
+            unreadCount: nextUnread,
+          };
+          const rest = prev.filter((_, i) => i !== index);
+          return [updatedTarget, ...rest];
+        } else {
+          // Brand new conversation from Instagram! Place immediately at the top
+          const newConv: Conversation = data.conversation ? {
+            ...data.conversation,
+            platform: "instagram",
+            messages: [data.message],
+            updatedAt: msgTime,
+            unreadCount: isCurrentlyActive ? 0 : (isInbound ? 1 : 0),
+          } : {
+            id: data.conversationId,
+            customerPhone: data.message.senderName || "Instagram User",
+            customerName: data.message.senderName || undefined,
+            platform: "instagram",
+            isBotPaused: false,
+            messages: [data.message],
+            updatedAt: msgTime,
+            unreadCount: isCurrentlyActive ? 0 : (isInbound ? 1 : 0),
+          };
+
+          return [newConv, ...prev];
         }
-        const updated = prev.map((c) => {
+      });
+    });
+
+    // Handle Conversation Marked as Read
+    socket.on("conversation-read", (data: { conversationId: string }) => {
+      setConversations((prev) =>
+        prev.map((c) => {
           if (c.id === data.conversationId) {
-            return { ...c, messages: [data.message], updatedAt: new Date().toISOString() };
+            return { ...c, unreadCount: 0 };
           }
           return c;
-        });
-        return [...updated].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      });
+        })
+      );
     });
 
     // Handle Status Updates (Ticks)
@@ -923,7 +976,7 @@ export default function Dashboard() {
     }
   };
 
-  const fetchConversations = async (accountId?: string) => {
+  const fetchConversations = async (accountId?: string, pageNumber: number = 1) => {
     const orgId = getOrgId();
     if (!orgId) {
       setConversations([]);
@@ -941,7 +994,11 @@ export default function Dashboard() {
 
     try {
       setLoadingConversations(true);
-      const queryParams = new URLSearchParams({ platform: "instagram" });
+      const queryParams = new URLSearchParams({
+        platform: "instagram",
+        page: String(pageNumber),
+        limit: "50"
+      });
       if (targetAccount) {
         queryParams.append("accountId", targetAccount);
       }
@@ -953,13 +1010,25 @@ export default function Dashboard() {
         return;
       }
       const data = await res.json();
+      let convList: Conversation[] = [];
       if (Array.isArray(data)) {
+        convList = data;
         setConversations(data);
-        if (activeConvRef.current) {
-          const freshActive = data.find((c) => c.id === activeConvRef.current?.id);
-          if (freshActive) {
-            setActiveConv(freshActive);
-          }
+        setTotalChatCount(data.length);
+        setChatPage(1);
+        setChatTotalPages(1);
+      } else if (data && Array.isArray(data.conversations)) {
+        convList = data.conversations;
+        setConversations(data.conversations);
+        setTotalChatCount(typeof data.total === "number" ? data.total : data.conversations.length);
+        setChatPage(data.page || pageNumber);
+        setChatTotalPages(data.totalPages || 1);
+      }
+
+      if (activeConvRef.current) {
+        const freshActive = convList.find((c) => c.id === activeConvRef.current?.id);
+        if (freshActive) {
+          setActiveConv(freshActive);
         }
       }
     } catch (err) {
@@ -1264,6 +1333,18 @@ export default function Dashboard() {
     setActiveConv(conv);
     fetchMessages(conv.id);
     setMobileChatOpen(true); // On mobile, open the chat panel
+
+    // Mark as read immediately on backend and locally
+    if (conv.unreadCount && conv.unreadCount > 0) {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conv.id ? { ...c, unreadCount: 0 } : c))
+      );
+      fetch(`${BACKEND_URL}/api/messages/read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: conv.id }),
+      }).catch((err) => console.warn("Failed to mark conversation as read:", err));
+    }
   };
   // Do not auto-select first conversation on load; conversations open only when explicitly clicked by user.
 
@@ -1477,8 +1558,17 @@ export default function Dashboard() {
                   <h2 className="font-bold text-base text-slate-900 flex items-center gap-2">
                     {isInstagramTab ? "Instagram Inbox" : "WhatsApp Inbox"}
                     <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isInstagramTab ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
-                      {filteredConversations.length} active
+                      {(totalChatCount !== null ? totalChatCount : filteredConversations.length)} active
                     </span>
+                    {(() => {
+                      const totalUnread = filteredConversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+                      if (totalUnread <= 0) return null;
+                      return (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-pink-500 text-white shadow-xs animate-in zoom-in-50">
+                          {totalUnread} unread
+                        </span>
+                      );
+                    })()}
                   </h2>
                   <button
                     type="button"
@@ -1535,47 +1625,108 @@ export default function Dashboard() {
                       const lastMsg = conv.messages?.[0];
                       const isSelected = activeConv?.id === conv.id;
                       const isInstagram = (conv.platform || "whatsapp") === "instagram";
+                      const unread = conv.unreadCount || 0;
+                      const hasUnread = unread > 0;
 
                       return (
                         <div
                           key={conv.id}
                           onClick={() => handleSelectConversation(conv)}
-                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-3 ${isSelected ? (isInstagram ? "bg-pink-50/80 border-pink-500 text-slate-900" : "bg-emerald-50/80 border-emerald-500 text-slate-900") : "hover:bg-slate-50 border-transparent text-slate-700"}`}
+                          className={`p-4 flex flex-col gap-1 cursor-pointer transition-all duration-150 border-l-3 ${
+                            isSelected 
+                              ? (isInstagram ? "bg-pink-50/80 border-pink-500 text-slate-900" : "bg-emerald-50/80 border-emerald-500 text-slate-900") 
+                              : hasUnread
+                                ? "bg-pink-50/30 hover:bg-pink-50/60 border-pink-400 text-slate-900"
+                                : "hover:bg-slate-50 border-transparent text-slate-700"
+                          }`}
                         >
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
                               {isInstagram ? (
                                 <Instagram className="h-3.5 w-3.5 text-pink-600 shrink-0" />
                               ) : (
                                 <WhatsApp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                               )}
-                              <span className="font-bold text-slate-900 text-sm truncate">
+                              <span className={`text-sm truncate ${hasUnread ? "font-extrabold text-slate-950" : "font-bold text-slate-900"}`}>
                                 {conv.customerName || conv.customerPhone}
                               </span>
                             </div>
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            <span className={`text-[10px] shrink-0 font-medium ${hasUnread ? "text-pink-600 font-bold" : "text-slate-400"}`}>
+                              {(() => {
+                                const lastMsgDate = conv.messages?.[0]?.createdAt || conv.updatedAt;
+                                const header = formatDateHeader(lastMsgDate);
+                                return header === "Today" ? formatMessageTime(lastMsgDate) : header;
+                              })()}
                             </span>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <p className="text-xs text-slate-400 truncate max-w-[180px]">
+                          <div className="flex justify-between items-center gap-2">
+                            <p className={`text-xs truncate max-w-[170px] ${hasUnread ? "text-slate-900 font-semibold" : "text-slate-500"}`}>
                               {lastMsg?.content || "No messages yet"}
                             </p>
-                            {conv.isBotPaused ? (
-                              <span className="text-[9px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5">
-                                <User className="h-2.5 w-2.5" /> Manual
-                              </span>
-                            ) : (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex items-center gap-0.5 ${isInstagram ? "bg-pink-500/10 text-pink-400" : "bg-emerald-500/10 text-emerald-400"}`}>
-                                <Bot className="h-2.5 w-2.5" /> Auto
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {conv.isBotPaused ? (
+                                <span className="text-[9px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
+                                  <User className="h-2.5 w-2.5" /> Manual
+                                </span>
+                              ) : (
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5 ${isInstagram ? "bg-pink-50 text-pink-700 border border-pink-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"}`}>
+                                  <Bot className="h-2.5 w-2.5" /> Auto
+                                </span>
+                              )}
+                              {hasUnread && (
+                                <span 
+                                  className="min-w-[19px] h-[19px] px-1.5 rounded-full bg-pink-500 text-white text-[10px] font-bold flex items-center justify-center shadow-xs animate-in zoom-in-50 duration-200 shrink-0"
+                                  title={`${unread} unread message${unread > 1 ? "s" : ""}`}
+                                >
+                                  {unread > 99 ? "99+" : unread}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
                     })
                   )}
                 </div>
+
+                {/* Pagination Controls at Bottom of Sidebar */}
+                {chatTotalPages > 1 && (
+                  <div className="p-3 border-t border-slate-200/80 bg-slate-50/90 flex items-center justify-between text-xs text-slate-600 shrink-0 select-none">
+                    <span className="font-medium text-[11px] text-slate-500">
+                      Page <strong className="text-slate-800 font-semibold">{chatPage}</strong> of <strong className="text-slate-800 font-semibold">{chatTotalPages}</strong> ({totalChatCount || 0} total)
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={chatPage <= 1 || loadingConversations}
+                        onClick={() => {
+                          const prev = Math.max(1, chatPage - 1);
+                          setChatPage(prev);
+                          fetchConversations(undefined, prev);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs transition-colors flex items-center justify-center cursor-pointer"
+                        title="Previous 50 chats"
+                        aria-label="Previous Page"
+                      >
+                        <ChevronLeft className="h-4 w-4 text-slate-700" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={chatPage >= chatTotalPages || loadingConversations}
+                        onClick={() => {
+                          const next = Math.min(chatTotalPages, chatPage + 1);
+                          setChatPage(next);
+                          fetchConversations(undefined, next);
+                        }}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs transition-colors flex items-center justify-center cursor-pointer"
+                        title="Next 50 chats"
+                        aria-label="Next Page"
+                      >
+                        <ChevronRight className="h-4 w-4 text-slate-700" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               {/* Chat Conversation Pane — full screen on mobile when chat open */}
               <div className={`${
@@ -1620,6 +1771,33 @@ export default function Dashboard() {
 
                       {/* Bot active / pause controllers */}
                       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+                        {/* 24-Hour Meta Messaging Window & Rate Limit Status Indicator */}
+                        {(() => {
+                          const lastInbound = messages.filter((m) => m.direction === "inbound").slice(-1)[0];
+                          if (!lastInbound?.createdAt) return null;
+                          const elapsedMs = Date.now() - new Date(lastInbound.createdAt).getTime();
+                          const hoursLeft = Math.max(0, 24 - elapsedMs / (1000 * 60 * 60));
+                          const isWindowOpen = hoursLeft > 0;
+
+                          return (
+                            <div
+                              className={`hidden md:flex text-[11px] px-2.5 py-1 rounded-lg items-center gap-1.5 border font-semibold select-none ${
+                                isWindowOpen
+                                  ? "bg-pink-50 border-pink-200 text-pink-700"
+                                  : "bg-amber-50 border-amber-200 text-amber-800"
+                              }`}
+                              title={
+                                isWindowOpen
+                                  ? `Meta Standard Messaging Window: open for ~${hoursLeft.toFixed(1)} more hours.`
+                                  : "Meta 24h Messaging Window expired: Customer must send a message to reopen session."
+                              }
+                            >
+                              <span className={`h-2 w-2 rounded-full ${isWindowOpen ? "bg-pink-500 animate-pulse" : "bg-amber-500"}`} />
+                              <span>{isWindowOpen ? `24h Window Open (${hoursLeft.toFixed(0)}h left)` : "24h Window Expired"}</span>
+                            </div>
+                          );
+                        })()}
+
                         <div className={`hidden sm:flex text-xs px-3 py-1.5 rounded-lg items-center gap-2 border font-bold transition-all ${activeConv.isBotPaused
                           ? "bg-amber-50 border-amber-200 text-amber-800"
                           : "bg-emerald-50 border-emerald-200 text-emerald-800"
