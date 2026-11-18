@@ -1745,13 +1745,11 @@ print(res.json())`;
     }
   };
 
-  // Direct Facebook Login / Meta OAuth Flow requesting exclusively the required permissions
+  // Direct Facebook Login / Meta OAuth Popup Flow (Identical across localhost and production CRM)
   const launchInstagramSignup = async () => {
     if (typeof window === "undefined") return;
 
     setIgEmbeddedConnecting(true);
-
-    const FB = (window as any).FB;
 
     const INSTAGRAM_SCOPES = [
       "instagram_basic",
@@ -1763,50 +1761,10 @@ print(res.json())`;
     ].join(",");
     const configId = process.env.NEXT_PUBLIC_META_INSTAGRAM_CONFIG_ID || "";
 
-    // 1. Primary Automated Flow: Native Facebook JS SDK with exact 3 Instagram Business scopes
-    if (FB && window.location.protocol === "https:") {
-      try {
-        const loginOptions: any = {
-          response_type: "code",
-          override_default_response_type: true,
-          auth_type: "rerequest",
-          return_scopes: true,
-        };
-
-        if (configId) {
-          loginOptions.config_id = configId;
-        } else {
-          loginOptions.scope = INSTAGRAM_SCOPES;
-        }
-
-        FB.login(
-          (response: any) => {
-            console.log("[META INSTAGRAM FB.LOGIN RESPONSE]:", response);
-            if (response.authResponse) {
-              if (response.authResponse.accessToken) {
-                console.log("[META INSTAGRAM] Direct access token obtained from FB.login");
-                processInstagramEmbeddedAuth({ accessToken: response.authResponse.accessToken }, "fb_sdk");
-              } else if (response.authResponse.code) {
-                console.log("[META INSTAGRAM] Authorization code obtained from FB.login");
-                processInstagramEmbeddedAuth({ code: response.authResponse.code }, "fb_sdk");
-              } else {
-                setIgEmbeddedConnecting(false);
-              }
-            } else {
-              setIgEmbeddedConnecting(false);
-            }
-          },
-          loginOptions
-        );
-        return;
-      } catch (err) {
-        console.warn("FB.login Instagram fallback triggered:", err);
-      }
-    }
-
-    // 2. Secondary Automated Flow: OAuth Popup Dialog with auto-polling
     const appId = process.env.NEXT_PUBLIC_META_APP_ID || "36702477879366478";
     const targetOrigin = window.location.origin.startsWith("https://")
+      ? window.location.origin
+      : window.location.origin.includes("localhost")
       ? window.location.origin
       : "https://crm.jisnudigital.com";
 
