@@ -1585,7 +1585,7 @@ print(res.json())`;
   const [igEmbeddedConnecting, setIgEmbeddedConnecting] = useState(false);
   const [igEmbeddedSuccess, setIgEmbeddedSuccess] = useState(false);
 
-  const processInstagramEmbeddedCode = async (code: string, source: "fb_sdk" | "popup" = "fb_sdk") => {
+  const processInstagramEmbeddedAuth = async (authData: { code?: string; accessToken?: string }, source: "fb_sdk" | "popup" = "fb_sdk") => {
     try {
       setIgEmbeddedConnecting(true);
       const orgId = getOrgId();
@@ -1604,7 +1604,8 @@ print(res.json())`;
           "x-organization-id": orgId,
         },
         body: JSON.stringify({
-          code,
+          code: authData.code,
+          accessToken: authData.accessToken,
           source,
           redirectUri,
         }),
@@ -1630,6 +1631,11 @@ print(res.json())`;
     } finally {
       setIgEmbeddedConnecting(false);
     }
+  };
+
+
+  const processInstagramEmbeddedCode = async (code: string, source: "fb_sdk" | "popup" = "fb_sdk") => {
+    return processInstagramEmbeddedAuth({ code }, source);
   };
 
   const handleDisconnectInstagram = async (targetAccountId?: string) => {
@@ -1776,8 +1782,16 @@ print(res.json())`;
         FB.login(
           (response: any) => {
             console.log("[META INSTAGRAM FB.LOGIN RESPONSE]:", response);
-            if (response.authResponse && response.authResponse.code) {
-              processInstagramEmbeddedCode(response.authResponse.code);
+            if (response.authResponse) {
+              if (response.authResponse.accessToken) {
+                console.log("[META INSTAGRAM] Direct access token obtained from FB.login");
+                processInstagramEmbeddedAuth({ accessToken: response.authResponse.accessToken }, "fb_sdk");
+              } else if (response.authResponse.code) {
+                console.log("[META INSTAGRAM] Authorization code obtained from FB.login");
+                processInstagramEmbeddedAuth({ code: response.authResponse.code }, "fb_sdk");
+              } else {
+                setIgEmbeddedConnecting(false);
+              }
             } else {
               setIgEmbeddedConnecting(false);
             }
