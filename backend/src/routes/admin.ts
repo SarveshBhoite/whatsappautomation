@@ -1437,8 +1437,23 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
         }
         console.log(`[IG DISCOVERY] Synced IG account @${username} (${page.igId}) with Page "${page.name}" (${page.id}) and Page Access Token!`);
 
-        // Automatically subscribe Instagram account to Meta Webhooks for live DMs, postbacks, reactions, and comments
+        // Automatically subscribe both the Facebook Page AND the Instagram account to Meta Webhooks for live DMs, postbacks, reactions, and comments
+        // Note: For Instagram Messaging, Meta requires POST /{page-id}/subscribed_apps with Page Access Token!
         try {
+          // 1. Subscribe Facebook Page (Essential for Instagram Messenger webhooks)
+          await axios.post(`https://graph.facebook.com/v21.0/${page.id}/subscribed_apps`, null, {
+            params: {
+              subscribed_fields: "messages,messaging_postbacks,message_reactions,feed,conversations",
+              access_token: page.access_token,
+            },
+          });
+          console.log(`[IG WEBHOOK] Successfully subscribed Facebook Page ${page.id} to live webhooks!`);
+        } catch (pageSubErr: any) {
+          console.warn(`[IG WEBHOOK] Notice subscribing Facebook Page ${page.id}:`, pageSubErr?.response?.data || pageSubErr.message);
+        }
+
+        try {
+          // 2. Subscribe Instagram Account (For Instagram graph webhooks: comments, mentions, DMs)
           await axios.post(`https://graph.facebook.com/v21.0/${page.igId}/subscribed_apps`, null, {
             params: {
               subscribed_fields: "messages,messaging_postbacks,message_reactions,comments,mentions",
@@ -1516,7 +1531,21 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
         }
         console.log(`[IG DISCOVERY] Successfully synced Instagram account @${username} (${igAccountId}) with Page "${matchingPage?.name || 'none'}" (${assignedPageId}) and token!`);
 
-        // Automatically subscribe Instagram account to Meta Webhooks for live DMs, postbacks, reactions, and comments
+        // Automatically subscribe both Facebook Page and Instagram Account to Meta Webhooks
+        if (assignedPageId && assignedPageToken) {
+          try {
+            await axios.post(`https://graph.facebook.com/v21.0/${assignedPageId}/subscribed_apps`, null, {
+              params: {
+                subscribed_fields: "messages,messaging_postbacks,message_reactions,feed,conversations",
+                access_token: assignedPageToken,
+              },
+            });
+            console.log(`[IG WEBHOOK] Successfully subscribed Facebook Page ${assignedPageId} to live webhooks!`);
+          } catch (pageSubErr: any) {
+            console.warn(`[IG WEBHOOK] Notice subscribing Facebook Page ${assignedPageId}:`, pageSubErr?.response?.data || pageSubErr.message);
+          }
+        }
+
         try {
           await axios.post(`https://graph.facebook.com/v21.0/${igAccountId}/subscribed_apps`, null, {
             params: {
@@ -2248,6 +2277,81 @@ router.get("/instagram/sync-conversations", async (req: Request, res: Response) 
     });
   } catch (error: any) {
     console.error("[IG SYNC DMS] Error:", error.message);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/admin/instagram/subscribe-webhooks
+// Force subscribe Facebook Page & Instagram account to Meta Webhooks
+router.post("/instagram/subscribe-webhooks", async (req: Request, res: Response) => {
+  try {
+    const organizationId = getOrgId(req);
+    const { accountId } = req.body;
+
+    let igConfig = null;
+    if (accountId) {
+      igConfig = await prisma.instagramConfig.findFirst({
+        where: {
+          organizationId,
+          isActive: true,
+          OR: [
+            { id: String(accountId) },
+            { instagramAccountId: String(accountId) }
+          ]
+        }
+      });
+    }
+
+    if (!igConfig) {
+      igConfig = await prisma.instagramConfig.findFirst({
+        where: { organizationId, isActive: true },
+        orderBy: { isDefault: "desc" },
+      });
+    }
+
+    if (!igConfig || !igConfig.pageAccessToken) {
+      return res.status(400).json({ success: false, error: "No active Instagram account found" });
+    }
+
+    const token = igConfig.pageAccessToken;
+    const pageId = igConfig.pageId;
+    const igAccountId = igConfig.instagramAccountId;
+    const results: any = {};
+
+    if (pageId) {
+      try {
+        const pageRes = await axios.post(`https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`, null, {
+          params: {
+            subscribed_fields: "messages,messaging_postbacks,message_reactions,feed,conversations",
+            access_token: token,
+          },
+        });
+        results.pageSubscription = pageRes.data;
+      } catch (err: any) {
+        results.pageSubscriptionError = err?.response?.data || err.message;
+      }
+    }
+
+    if (igAccountId) {
+      try {
+        const igRes = await axios.post(`https://graph.facebook.com/v21.0/${igAccountId}/subscribed_apps`, null, {
+          params: {
+            subscribed_fields: "messages,messaging_postbacks,message_reactions,comments,mentions",
+            access_token: token,
+          },
+        });
+        results.igSubscription = igRes.data;
+      } catch (err: any) {
+        results.igSubscriptionError = err?.response?.data || err.message;
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Webhook subscriptions requested successfully",
+      details: results,
+    });
+  } catch (error: any) {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
