@@ -1403,6 +1403,15 @@ export async function syncAllInstagramAccountsForToken(organizationId: string, a
         const name = page.igName || page.name || "";
         const profilePic = page.igPic || "";
 
+        // Ensure single organization ownership: deactivate this IG account if claimed by any other org
+        await prisma.instagramConfig.updateMany({
+          where: {
+            instagramAccountId: page.igId,
+            organizationId: { not: organizationId }
+          },
+          data: { isActive: false }
+        });
+
         const existingCount = await prisma.instagramConfig.count({ where: { organizationId } });
         const existing = await prisma.instagramConfig.findFirst({
           where: { organizationId, instagramAccountId: page.igId }

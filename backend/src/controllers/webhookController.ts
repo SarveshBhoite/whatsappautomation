@@ -176,6 +176,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
             { instagramAccountId: pageId }
           ]
         },
+        orderBy: { updatedAt: "desc" },
         include: { organization: true }
       });
 
@@ -188,6 +189,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
               { pageId: entry.id }
             ]
           },
+          orderBy: { updatedAt: "desc" },
           include: { organization: true }
         });
       }
@@ -377,14 +379,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
     });
 
     if (!waConfig) {
-      // Fallback to default organization if matching by phoneNumberId fails
-      console.warn(`No exact match for Phone Number ID: ${phoneNumberId}. Falling back to default organization...`);
-      const defaultOrg = await prisma.organization.findFirst({
-        include: { waConfigs: true }
-      });
-      if (defaultOrg && defaultOrg.waConfigs?.length) {
-        waConfig = (defaultOrg.waConfigs.find((c: any) => c.isDefault) || defaultOrg.waConfigs[0]) as any;
-      }
+      console.warn(`[MULTI-TENANCY] No registered organization found for WhatsApp Phone Number ID: ${phoneNumberId}. Webhook ignored.`);
+      return res.sendStatus(200);
     }
 
     if (!waConfig) {
