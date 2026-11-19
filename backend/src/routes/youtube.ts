@@ -825,47 +825,62 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
     const videosList: any[] = [];
     const shortsList: any[] = [];
 
-    videoItems.forEach((item: any) => {
-      const durationSec = parseIsoDuration(item.contentDetails?.duration);
-      const title = item.snippet?.title || "Untitled";
-      const titleLower = title.toLowerCase();
-      const descLower = (item.snippet?.description || "").toLowerCase();
+    await Promise.all(
+      videoItems.map(async (item: any) => {
+        const durationSec = parseIsoDuration(item.contentDetails?.duration);
+        const title = item.snippet?.title || "Untitled";
+        const titleLower = title.toLowerCase();
+        const descLower = (item.snippet?.description || "").toLowerCase();
+        const hasShortTag = titleLower.includes("#shorts") || titleLower.includes("#short") || descLower.includes("#shorts") || descLower.includes("#short");
 
-      let isShort = false;
-      if (durationSec > 0 && durationSec <= 60) {
-        isShort = true;
-      } else if (titleLower.includes("#shorts") || descLower.includes("#shorts")) {
-        isShort = true;
-      }
+        let isShort = false;
+        if (hasShortTag) {
+          isShort = true;
+        } else if (durationSec > 180) {
+          isShort = false;
+        } else {
+          // Check YouTube's official shorts endpoint: returns 200 for Shorts, 303 redirect to /watch for regular landscape videos
+          try {
+            const hRes = await axios.head(`https://www.youtube.com/shorts/${item.id}`, {
+              maxRedirects: 0,
+              validateStatus: () => true,
+              timeout: 2500
+            });
+            isShort = hRes.status === 200;
+          } catch {
+            isShort = durationSec > 0 && durationSec <= 60 && hasShortTag;
+          }
+        }
 
-      const rawLikes = Number(item.statistics?.likeCount ?? 0);
-      const likes = rawLikes < 0 ? 0 : rawLikes;
-      const views = Number(item.statistics?.viewCount || 0);
-      const comments = Number(item.statistics?.commentCount || 0);
+        const rawLikes = Number(item.statistics?.likeCount ?? 0);
+        const likes = rawLikes < 0 ? 0 : rawLikes;
+        const views = Number(item.statistics?.viewCount || 0);
+        const comments = Number(item.statistics?.commentCount || 0);
 
-      const videoData = {
-        id: item.id,
-        title,
-        description: item.snippet?.description || "",
-        thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || "",
-        publishedAt: item.snippet?.publishedAt,
-        durationSec,
-        isShort,
-        views,
-        likes,
-        likesHidden: rawLikes < 0,
-        comments,
-        engagementRate: views > 0 
-          ? parseFloat((((likes + comments) / views) * 100).toFixed(2))
-          : 0
-      };
+        const videoData = {
+          id: item.id,
+          title,
+          description: item.snippet?.description || "",
+          thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || "",
+          publishedAt: item.snippet?.publishedAt,
+          durationSec,
+          isShort,
+          views,
+          likes,
+          likesHidden: rawLikes < 0,
+          comments,
+          engagementRate: views > 0 
+            ? parseFloat((((likes + comments) / views) * 100).toFixed(2))
+            : 0
+        };
 
-      if (isShort) {
-        shortsList.push(videoData);
-      } else {
-        videosList.push(videoData);
-      }
-    });
+        if (isShort) {
+          shortsList.push(videoData);
+        } else {
+          videosList.push(videoData);
+        }
+      })
+    );
 
     const videoViews = videosList.reduce((acc, curr) => acc + curr.views, 0);
     const shortViews = shortsList.reduce((acc, curr) => acc + curr.views, 0);
@@ -1109,7 +1124,7 @@ router.get("/comments/video/:videoId", async (req: Request, res: Response) => {
 router.post("/comments/reply", async (req: Request, res: Response) => {
   try {
     const organizationId = getOrgId(req);
-    const accountId = req.query.accountId as string;
+    const accountId = (req.body.accountId || req.query.accountId) as string;
     const { accessToken } = await getYoutubeAccessToken(organizationId, accountId);
     const { parentId, videoId, text } = req.body;
 

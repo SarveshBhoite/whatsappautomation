@@ -36,7 +36,8 @@ import {
   ThumbsUp,
   Eye,
   Tv,
-  AlertCircle
+  AlertCircle,
+  Search
 } from "lucide-react";
 import Link from "next/link";
 import { AccountSwitcher, AccountOption } from "../../components/AccountSwitcher";
@@ -396,11 +397,12 @@ export default function Dashboard() {
   }, []);
 
   // Video-Specific Comment Filtering State
-  const [selectedVideoForComments, setSelectedVideoForComments] = useState<{ id: string; title: string; thumbnail: string; views?: number } | null>(null);
+  const [selectedVideoForComments, setSelectedVideoForComments] = useState<{ id: string; title: string; thumbnail: string; views?: number; comments?: number; isShort?: boolean; publishedAt?: string } | null>(null);
   const [videoCommentsData, setVideoCommentsData] = useState<any[]>([]);
   const [videoCommentsDisabled, setVideoCommentsDisabled] = useState<boolean>(false);
   const [loadingVideoComments, setLoadingVideoComments] = useState(false);
   const [commentsFilter, setCommentsFilter] = useState<"all" | "shorts" | "videos">("all");
+  const [commentsSearchTerm, setCommentsSearchTerm] = useState<string>("");
 
   // Videos vs Shorts State
   const [videosShortsData, setVideosShortsData] = useState<any | null>(null);
@@ -918,11 +920,12 @@ export default function Dashboard() {
     }
   };
 
-  const fetchVideoComments = async (videoId: string) => {
+  const fetchVideoComments = async (videoId: string, accountId?: string) => {
     setLoadingVideoComments(true);
     setVideoCommentsDisabled(false);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/youtube/comments/video/${videoId}`, {
+      const targetId = accountId || selectedYoutubeAccountId;
+      const res = await fetch(`${BACKEND_URL}/api/youtube/comments/video/${videoId}${targetId ? `?accountId=${encodeURIComponent(targetId)}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -1012,7 +1015,7 @@ export default function Dashboard() {
           "Content-Type": "application/json",
           "x-organization-id": getOrgId()
         },
-        body: JSON.stringify({ parentId: commentId, videoId, text })
+        body: JSON.stringify({ parentId: commentId, videoId, text, accountId: selectedYoutubeAccountId })
       });
       if (res.ok) {
         setReplyInputText((prev) => ({ ...prev, [commentId]: "" }));
@@ -1153,6 +1156,7 @@ export default function Dashboard() {
   const handleSwitchYoutubeAccount = async (accountId: string) => {
     try {
       setSelectedYoutubeAccountId(accountId);
+      setSelectedVideoForComments(null);
       const acc = youtubeAccounts.find(a => a.id === accountId);
       if (acc) {
         setYtConfig({
@@ -1856,100 +1860,224 @@ export default function Dashboard() {
         {activeTab === "chats_youtube" && (
           <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
             {selectedVideoForComments ? (
-              <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
-                <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between gap-3 shrink-0 shadow-xs">
-                  <div className="flex items-center gap-3 min-w-0">
+              <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden animate-fadeIn">
+                {/* Active Video Header Bar */}
+                <div className="p-4 sm:p-5 border-b border-slate-200/90 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 shadow-xs">
+                  <div className="flex items-center gap-3.5 min-w-0">
                     {selectedVideoForComments.thumbnail && (
-                      <img src={selectedVideoForComments.thumbnail} alt={selectedVideoForComments.title} className="h-10 w-16 object-cover rounded-xl border border-slate-200 shrink-0 shadow-2xs" />
+                      <div className="relative shrink-0 group">
+                        <img 
+                          src={selectedVideoForComments.thumbnail} 
+                          alt={selectedVideoForComments.title} 
+                          className="h-12 w-20 object-cover rounded-xl border border-slate-200 shadow-2xs group-hover:scale-105 transition-transform" 
+                        />
+                        {selectedVideoForComments.isShort && (
+                          <span className="absolute -top-1 -right-1 bg-red-600 text-white font-black text-[8px] px-1.5 py-0.5 rounded-full shadow-xs">
+                            ⚡ SHORT
+                          </span>
+                        )}
+                      </div>
                     )}
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[10px] uppercase font-bold text-red-600 tracking-wider">Video Comment Section</span>
-                      <h3 className="font-extrabold text-sm text-slate-900 truncate">{selectedVideoForComments.title}</h3>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-extrabold text-red-600 tracking-wider flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" /> Video Comment Section
+                        </span>
+                        {selectedVideoForComments.views !== undefined && (
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            • {selectedVideoForComments.views.toLocaleString()} views
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-extrabold text-sm sm:text-base text-slate-900 truncate mt-0.5">
+                        {selectedVideoForComments.title}
+                      </h3>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedVideoForComments(null)}
-                    className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs transition-all"
-                  >
-                    ← Back to All Videos &amp; Shorts
-                  </button>
+
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <a
+                      href={`https://www.youtube.com/watch?v=${selectedVideoForComments.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 text-red-600" />
+                      <span className="hidden sm:inline">Watch on YouTube</span>
+                    </a>
+                    <button
+                      onClick={() => fetchVideoComments(selectedVideoForComments.id)}
+                      disabled={loadingVideoComments}
+                      className="p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-red-600 transition-all cursor-pointer shadow-2xs"
+                      title="Refresh comments"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${loadingVideoComments ? "animate-spin text-red-600" : ""}`} />
+                    </button>
+                    <button
+                      onClick={() => setSelectedVideoForComments(null)}
+                      className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-xs font-extrabold cursor-pointer flex items-center gap-1.5 shadow-2xs hover:border-slate-300 transition-all"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" /> Back to Videos
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {/* Comments List & Reply Stream */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4 max-w-5xl mx-auto w-full scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                   {loadingVideoComments ? (
-                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
-                      <RefreshCw className="h-6 w-6 text-red-600 animate-spin" />
-                      <p className="text-xs font-semibold">Loading video comments...</p>
+                    <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
+                      <div className="h-10 w-10 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+                        <RefreshCw className="h-5 w-5 animate-spin" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-slate-800">Fetching live comments from YouTube...</p>
+                        <p className="text-xs text-slate-400">Loading conversation threads and viewer replies</p>
+                      </div>
                     </div>
                   ) : videoCommentsDisabled ? (
-                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
-                      <AlertCircle className="h-8 w-8 text-amber-500" />
-                      <div className="flex flex-col gap-1">
+                    <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
+                      <div className="h-12 w-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
+                        <AlertCircle className="h-6 w-6" />
+                      </div>
+                      <div className="flex flex-col gap-1 max-w-sm">
                         <span className="text-sm font-bold text-slate-900">Comments Disabled for this Video</span>
-                        <span className="text-xs text-slate-500 max-w-sm">
-                          Comments are turned off or disabled on YouTube for this specific video/short.
+                        <span className="text-xs text-slate-500">
+                          Comments are turned off in YouTube Studio or restricted for this specific video or Short.
                         </span>
                       </div>
                     </div>
                   ) : videoCommentsData.length === 0 ? (
-                    <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2 bg-white border border-slate-200 rounded-3xl shadow-xs">
-                      <MessageSquare className="h-8 w-8 text-slate-300" />
-                      <p className="text-xs font-bold text-slate-700">No comments found for this video.</p>
+                    <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
+                      <div className="h-12 w-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+                        <MessageSquare className="h-6 w-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-slate-800">No comments on this video yet</p>
+                        <p className="text-xs text-slate-400">When viewers leave comments on YouTube, they will appear here live for instant replies.</p>
+                      </div>
                     </div>
                   ) : (
                     videoCommentsData.map((comment: any) => (
-                      <div key={comment.id} className="bg-white border border-slate-200 rounded-3xl p-5 space-y-3 shadow-xs">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
+                      <div key={comment.id} className="bg-white border border-slate-200/90 rounded-2xl p-5 space-y-3.5 shadow-xs hover:border-slate-300 transition-all">
+                        {/* Comment Author Header */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
                             {comment.authorAvatar ? (
-                              <img src={comment.authorAvatar} alt={comment.authorName} className="h-7 w-7 rounded-full object-cover border border-slate-200 shrink-0" />
+                              <img src={comment.authorAvatar} alt={comment.authorName} className="h-8 w-8 rounded-full object-cover border border-slate-200 shrink-0 shadow-2xs" />
                             ) : (
-                              <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-700 shrink-0">
-                                {comment.authorName?.[0] || "U"}
+                              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-red-500 to-rose-600 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs">
+                                {comment.authorName?.[0]?.toUpperCase() || "U"}
                               </div>
                             )}
                             <div className="flex flex-col min-w-0">
-                              <span className="font-bold text-xs text-slate-900 truncate">{comment.authorName}</span>
-                              <span className="text-[10px] text-slate-400">{new Date(comment.publishedAt).toLocaleDateString()}</span>
+                              <span className="font-extrabold text-xs text-slate-900 truncate flex items-center gap-1.5">
+                                {comment.authorName}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {new Date(comment.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                              </span>
                             </div>
                           </div>
-                          <span className="text-xs font-bold text-red-700 bg-red-50 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-red-200">
-                            👍 {comment.likeCount || 0}
-                          </span>
+                          
+                          <div className="flex items-center gap-2">
+                            {Number(comment.likeCount) > 0 && (
+                              <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1 border border-slate-200">
+                                <ThumbsUp className="w-3 h-3 text-red-600" /> {comment.likeCount}
+                              </span>
+                            )}
+                            {comment.replies && comment.replies.length > 0 && (
+                              <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                                {comment.replies.length} {comment.replies.length === 1 ? "reply" : "replies"}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <p className="text-xs text-slate-800 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+                        {/* Comment Text Bubble */}
+                        <div className="text-xs text-slate-800 leading-relaxed bg-slate-50/90 p-4 rounded-xl border border-slate-200/70 whitespace-pre-wrap font-normal">
                           {comment.text}
-                        </p>
+                        </div>
 
-                        {/* Replies */}
+                        {/* Threaded Nested Replies */}
                         {comment.replies && comment.replies.length > 0 && (
-                          <div className="pl-4 border-l-2 border-red-200 space-y-2 mt-2">
+                          <div className="pl-4 sm:pl-6 border-l-2 border-red-200 space-y-2.5 mt-3">
                             {comment.replies.map((rep: any) => (
-                              <div key={rep.id} className="bg-slate-50 p-3 rounded-xl text-xs space-y-1 border border-slate-200/60">
-                                <span className="font-bold text-slate-900">{rep.authorName}</span>
-                                <p className="text-slate-700">{rep.text}</p>
+                              <div key={rep.id} className="bg-slate-50/80 p-3.5 rounded-xl text-xs space-y-1.5 border border-slate-200/80">
+                                <div className="flex items-center gap-2">
+                                  {rep.authorAvatar ? (
+                                    <img src={rep.authorAvatar} alt={rep.authorName} className="h-5 w-5 rounded-full object-cover border border-slate-200 shrink-0" />
+                                  ) : (
+                                    <div className="h-5 w-5 rounded-full bg-red-100 text-red-700 flex items-center justify-center text-[9px] font-bold shrink-0">
+                                      {rep.authorName?.[0] || "U"}
+                                    </div>
+                                  )}
+                                  <span className="font-extrabold text-[11px] text-slate-900">{rep.authorName}</span>
+                                  {rep.publishedAt && (
+                                    <span className="text-[9px] text-slate-400">
+                                      {new Date(rep.publishedAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-slate-700 text-xs pl-7 leading-relaxed">{rep.text}</p>
                               </div>
                             ))}
                           </div>
                         )}
 
-                        {/* Inline Reply Input */}
-                        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-                          <input
-                            type="text"
-                            value={replyInputText[comment.id] || ""}
-                            onChange={(e) => setReplyInputText({ ...replyInputText, [comment.id]: e.target.value })}
-                            placeholder="Type a reply to this viewer..."
-                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-red-500 shadow-2xs"
-                          />
-                          <button
-                            onClick={() => handlePostCommentReply(comment.id, selectedVideoForComments.id)}
-                            disabled={postingReplyStatus[comment.id]}
-                            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs shadow-red-600/20"
-                          >
-                            <Send className="h-3.5 w-3.5" /> Reply
-                          </button>
+                        {/* Inline Reply Composer */}
+                        <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={replyInputText[comment.id] || ""}
+                              onChange={(e) => setReplyInputText({ ...replyInputText, [comment.id]: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handlePostCommentReply(comment.id, selectedVideoForComments.id);
+                                }
+                              }}
+                              placeholder={`Reply to @${comment.authorName}...`}
+                              className="flex-1 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-red-500 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 transition-all outline-none shadow-2xs"
+                            />
+                            <button
+                              onClick={() => handlePostCommentReply(comment.id, selectedVideoForComments.id)}
+                              disabled={postingReplyStatus[comment.id] || !replyInputText[comment.id]?.trim()}
+                              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 disabled:opacity-40 text-white font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs shadow-red-600/20 transition-all shrink-0"
+                            >
+                              {postingReplyStatus[comment.id] ? (
+                                <>
+                                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                  <span>Posting...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="h-3.5 w-3.5" />
+                                  <span>Reply</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Quick Emoji Reaction / Pre-made reply chips */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] text-slate-400 font-semibold mr-1">Quick replies:</span>
+                            {[
+                              "Thank you so much! 🙏",
+                              "Glad you liked it! ❤️",
+                              "Thanks for watching! Stay tuned for more ✨",
+                              "Great question! Feel free to reach out to us."
+                            ].map((preset, pIdx) => (
+                              <button
+                                key={pIdx}
+                                type="button"
+                                onClick={() => setReplyInputText({ ...replyInputText, [comment.id]: preset })}
+                                className="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-red-50 hover:text-red-700 hover:border-red-200 border border-slate-200 text-slate-600 text-[10px] font-medium transition-all cursor-pointer"
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -1957,112 +2085,169 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-                  <div>
-                    <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5 text-red-600" /> Channel Videos &amp; Comments Hub
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Select any video or Short to open its comment section and reply to viewers.
+              <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {/* Header Section with Search & Filtering */}
+                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600">
+                        <MessageSquare className="h-4 w-4" />
+                      </div>
+                      <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                        Channel Videos &amp; Comments Hub
+                      </h2>
+                    </div>
+                    <p className="text-xs text-slate-500 pl-10">
+                      Manage all comments across your YouTube videos and Shorts in one centralized inbox.
                     </p>
                   </div>
 
-                  {/* Filter Pills */}
-                  {videosShortsData && (
-                    <div className="flex items-center gap-2 self-start sm:self-auto">
-                      {[
-                        { id: "all", label: `All Content (${(videosShortsData.videos?.length || 0) + (videosShortsData.shorts?.length || 0)})` },
-                        { id: "shorts", label: `⚡ Shorts (${videosShortsData.shorts?.length || 0})` },
-                        { id: "videos", label: `📺 Videos (${videosShortsData.videos?.length || 0})` }
-                      ].map((item) => (
+                  {/* Search and Filter Controls */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                    {/* Search Bar */}
+                    <div className="relative min-w-[220px]">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={commentsSearchTerm}
+                        onChange={(e) => setCommentsSearchTerm(e.target.value)}
+                        placeholder="Search video by title..."
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-red-500 rounded-xl text-xs text-slate-900 placeholder-slate-400 transition-all outline-none"
+                      />
+                      {commentsSearchTerm && (
                         <button
-                          key={item.id}
-                          onClick={() => setCommentsFilter(item.id as any)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            commentsFilter === item.id
-                              ? "bg-red-600 text-white shadow-xs"
-                              : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200"
-                          }`}
+                          type="button"
+                          onClick={() => setCommentsSearchTerm("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                         >
-                          {item.label}
+                          ✕
                         </button>
-                      ))}
+                      )}
                     </div>
-                  )}
+
+                    {/* Filter Segment Buttons */}
+                    {videosShortsData && (
+                      <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                        {[
+                          { id: "all", label: `All (${(videosShortsData.videos?.length || 0) + (videosShortsData.shorts?.length || 0)})` },
+                          { id: "shorts", label: `⚡ Shorts (${videosShortsData.shorts?.length || 0})` },
+                          { id: "videos", label: `📺 Videos (${videosShortsData.videos?.length || 0})` }
+                        ].map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => setCommentsFilter(item.id as any)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              commentsFilter === item.id
+                                ? "bg-white text-red-600 shadow-2xs font-extrabold"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
+                {/* Content Cards Grid */}
                 {loadingVideosShorts ? (
-                  <div className="p-16 text-center text-slate-500 flex flex-col items-center gap-2">
+                  <div className="p-16 text-center text-slate-500 flex flex-col items-center justify-center gap-3 bg-white border border-slate-200 rounded-3xl shadow-xs">
                     <RefreshCw className="h-8 w-8 text-red-600 animate-spin" />
-                    <p className="text-xs font-semibold">Loading channel videos and Shorts...</p>
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-bold text-slate-800">Loading channel videos and Shorts...</p>
+                      <p className="text-xs text-slate-400">Fetching latest content metrics from YouTube API</p>
+                    </div>
                   </div>
                 ) : videosShortsData ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4.5">
                     {(() => {
-                      const allItems = [
+                      let allItems = [
                         ...(commentsFilter !== "shorts" ? (videosShortsData.videos || []) : []),
                         ...(commentsFilter !== "videos" ? (videosShortsData.shorts || []) : [])
                       ].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
+                      if (commentsSearchTerm.trim()) {
+                        const term = commentsSearchTerm.toLowerCase();
+                        allItems = allItems.filter(item => (item.title || "").toLowerCase().includes(term));
+                      }
+
                       if (allItems.length === 0) {
                         return (
-                          <div className="col-span-full p-12 text-center text-slate-500 bg-white border border-slate-200 rounded-3xl">
-                            No content found for the selected filter.
+                          <div className="col-span-full p-16 text-center text-slate-500 bg-white border border-slate-200 rounded-3xl shadow-xs">
+                            <MessageSquare className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                            <p className="text-sm font-bold text-slate-800">No content matches your filter</p>
+                            <p className="text-xs text-slate-400 mt-1">Try clearing your search query or selecting a different tab.</p>
                           </div>
                         );
                       }
 
-                      return allItems.map((item: any) => (
-                        <div
-                          key={item.id}
-                          onClick={() => handleSelectVideoForComments(item)}
-                          className="bg-white border border-slate-200 hover:border-red-300 rounded-3xl p-4.5 flex flex-col justify-between gap-3 transition-all duration-200 hover:scale-[1.01] shadow-xs hover:shadow-sm cursor-pointer group"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="relative shrink-0">
-                              <img
-                                src={item.thumbnail}
-                                alt={item.title}
-                                className={`object-cover rounded-xl border border-slate-200 ${item.isShort ? "h-16 w-11" : "h-14 w-24"}`}
-                              />
-                              {item.isShort && (
-                                <span className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-[9px] px-1.5 py-0.5 rounded-full shadow-xs">
-                                  ⚡ SHORT
+                      return allItems.map((item: any) => {
+                        const hasComments = Number(item.comments) > 0;
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => handleSelectVideoForComments(item)}
+                            className="bg-white border border-slate-200/90 hover:border-red-400 rounded-2xl p-4 flex flex-col justify-between gap-3.5 transition-all duration-200 hover:-translate-y-0.5 shadow-xs hover:shadow-md cursor-pointer group"
+                          >
+                            {/* Card Top: Thumbnail & Info */}
+                            <div className="flex items-start gap-3">
+                              <div className="relative shrink-0 overflow-hidden rounded-xl border border-slate-200 shadow-2xs">
+                                <img
+                                  src={item.thumbnail}
+                                  alt={item.title}
+                                  className={`object-cover group-hover:scale-105 transition-transform duration-300 ${item.isShort ? "h-20 w-14" : "h-16 w-28"}`}
+                                />
+                                {item.isShort ? (
+                                  <span className="absolute bottom-1 right-1 bg-red-600/90 backdrop-blur-xs text-white font-black text-[8px] px-1.5 py-0.5 rounded shadow-xs">
+                                    ⚡ SHORT
+                                  </span>
+                                ) : (
+                                  <span className="absolute bottom-1 right-1 bg-slate-900/80 backdrop-blur-xs text-white font-bold text-[8px] px-1.5 py-0.5 rounded shadow-xs">
+                                    VIDEO
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex flex-col min-w-0 flex-1">
+                                <h4 className="font-extrabold text-xs text-slate-900 line-clamp-2 leading-snug group-hover:text-red-600 transition-colors">
+                                  {item.title}
+                                </h4>
+                                <span className="text-[10px] text-slate-400 font-medium mt-1.5">
+                                  {new Date(item.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                                 </span>
-                              )}
+                              </div>
                             </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-bold text-xs text-slate-900 truncate group-hover:text-red-600 transition-colors">
-                                {item.title}
-                              </span>
-                              <span className="text-[10px] text-slate-400 mt-1">
-                                {new Date(item.publishedAt).toLocaleDateString()}
+
+                            {/* Card Bottom: Stats & Action CTA */}
+                            <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+                              <div className="flex items-center gap-3">
+                                <span className="text-slate-600 font-mono text-[11px] font-semibold flex items-center gap-1">
+                                  <Eye className="w-3.5 h-3.5 text-slate-400" /> {Number(item.views || 0).toLocaleString()}
+                                </span>
+                                <span className={`font-mono text-[11px] font-semibold flex items-center gap-1 ${hasComments ? "text-red-600 font-bold" : "text-slate-400"}`}>
+                                  <MessageSquare className="w-3.5 h-3.5" /> {Number(item.comments || 0).toLocaleString()}
+                                </span>
+                              </div>
+
+                              <span className={`text-[11px] font-extrabold px-3 py-1 rounded-xl transition-all flex items-center gap-1 ${
+                                hasComments 
+                                  ? "bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white" 
+                                  : "text-slate-500 group-hover:text-red-600"
+                              }`}>
+                                {hasComments ? "View & Reply" : "View"} →
                               </span>
                             </div>
                           </div>
-
-                          <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
-                            <div className="flex items-center gap-3">
-                              <span className="text-slate-500 font-mono text-[11px] font-medium">
-                                👁️ {item.views.toLocaleString()}
-                              </span>
-                              <span className="text-slate-500 font-mono text-[11px] font-medium">
-                                💬 {item.comments.toLocaleString()}
-                              </span>
-                            </div>
-
-                            <span className="text-[10px] font-bold text-red-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                              View Comments →
-                            </span>
-                          </div>
-                        </div>
-                      ));
+                        );
+                      });
                     })()}
                   </div>
                 ) : (
-                  <div className="text-center text-slate-500 text-xs py-10 bg-white border border-slate-200 rounded-3xl p-8 shadow-xs">
-                    Connect your YouTube channel to load video &amp; Short comment feeds.
+                  <div className="text-center text-slate-500 text-xs py-16 bg-white border border-slate-200 rounded-3xl p-8 shadow-xs">
+                    <Tv className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                    <p className="font-bold text-slate-800 text-sm">No YouTube channel connected</p>
+                    <p className="text-slate-400 text-xs mt-1">Connect your YouTube channel in settings to load video &amp; Short comment feeds.</p>
                   </div>
                 )}
               </div>
