@@ -952,8 +952,9 @@ router.get("/reviews", async (req, res) => {
 // 3.1 GET Sync Live GMB Reviews
 router.get("/reviews/sync", async (req, res) => {
   try {
-    const orgId = (req.query.orgId as string) || DEFAULT_ORG_ID;
-    const result = await syncGmbReviews(orgId, io);
+    const orgId = (req.query.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const accountId = req.query.accountId as string;
+    const result = await syncGmbReviews(orgId, io, accountId);
     res.status(200).json({
       message: `Successfully synchronized reviews. Added ${result.syncedCount} new reviews.`,
       reviews: result.reviews
@@ -967,13 +968,15 @@ router.get("/reviews/sync", async (req, res) => {
 // 3.2 POST Trigger AI Sentiment Auto-Reply for all unreplied reviews
 router.post("/reviews/auto-reply-all", async (req, res) => {
   try {
-    const orgId = (req.body.orgId as string) || DEFAULT_ORG_ID;
+    const orgId = (req.body.orgId as string) || (req.headers["x-organization-id"] as string) || DEFAULT_ORG_ID;
+    const accountId = req.body.accountId as string;
 
-    const config = await getGmbConfig(orgId, req.body.accountId as string);
+    const config = await getGmbConfig(orgId, accountId);
 
     const unrepliedReviews = await prisma.googleReview.findMany({
       where: {
         organizationId: orgId,
+        ...(accountId ? { accountId } : {}),
         OR: [
           { replyText: null },
           { replyStatus: "UNREPLIED" },
@@ -984,7 +987,7 @@ router.post("/reviews/auto-reply-all", async (req, res) => {
 
     let autoRepliedCount = 0;
     for (const review of unrepliedReviews) {
-      await executeAutoReplyIfApplicable(review, config);
+      await executeAutoReplyIfApplicable(review, config, true);
       autoRepliedCount++;
     }
 

@@ -132,15 +132,40 @@ export async function generateSentimentAnalysisReply(review: any, locationName: 
 }
 
 // Helper function to handle sentiment analysis auto-replies
-export async function executeAutoReplyIfApplicable(review: any, config: any) {
+export async function executeAutoReplyIfApplicable(review: any, config: any, forceReply: boolean = false) {
   // If review already has a reply, skip
   if (review.replyText && review.replyStatus === "REPLIED") {
     return;
   }
 
+  // Check if autoReply is enabled for this account (unless forced by manual button trigger)
+  if (!forceReply && !config?.autoReplyEnabled) {
+    console.log(`[GMB AUTO-REPLY] Auto-reply is disabled for config ${config?.id || "unknown"}. Skipping.`);
+    return;
+  }
+
+  // Respect minimum rating threshold if configured
+  const minRating = typeof config?.autoReplyMinRating === "number" ? config.autoReplyMinRating : 1;
+  const reviewRating = Number(review.rating || 5);
+  if (!forceReply && reviewRating < minRating) {
+    console.log(`[GMB AUTO-REPLY] Review rating (${reviewRating}) is below min threshold (${minRating}). Skipping auto-reply.`);
+    return;
+  }
+
   try {
     const locationName = config?.locationName || "Our Business";
-    const replyText = await generateSentimentAnalysisReply(review, locationName);
+    const customerName = review.customerName || "Valued Customer";
+    let replyText = "";
+
+    // Use custom template if set, otherwise generate contextual AI reply
+    if (config?.autoReplyTemplate && config.autoReplyTemplate.trim().length > 0) {
+      replyText = config.autoReplyTemplate
+        .replace(/{customerName}/gi, customerName)
+        .replace(/{locationName}/gi, locationName)
+        .replace(/{rating}/gi, String(reviewRating));
+    } else {
+      replyText = await generateSentimentAnalysisReply(review, locationName);
+    }
 
     const clientId = config?.googleClientId || process.env.GOOGLE_CLIENT_ID;
     const clientSecret = config?.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
@@ -179,13 +204,23 @@ export async function executeAutoReplyIfApplicable(review: any, config: any) {
   }
 }
 
-// Core sync function
-export async function syncGmbReviews(orgId: string, io?: any) {
-  const config = await (prisma as any).googleBusinessConfig.findFirst({
-    where: { organizationId: orgId, isDefault: true }
-  }) || await (prisma as any).googleBusinessConfig.findFirst({
-    where: { organizationId: orgId }
-  });
+// Core sync function supporting multi-tenant organizations & specific account IDs
+export async function syncGmbReviews(orgId: string, io?: any, accountId?: string) {
+  let config: any = null;
+
+  if (accountId) {
+    config = await (prisma as any).googleBusinessConfig.findFirst({
+      where: { id: accountId, organizationId: orgId }
+    });
+  }
+
+  if (!config) {
+    config = await (prisma as any).googleBusinessConfig.findFirst({
+      where: { organizationId: orgId, isDefault: true }
+    }) || await (prisma as any).googleBusinessConfig.findFirst({
+      where: { organizationId: orgId }
+    });
+  }
 
   if (!config) {
     throw new Error("Google Business Configuration not found.");
@@ -203,12 +238,31 @@ export async function syncGmbReviews(orgId: string, io?: any) {
   const reviewsUrl = `https://mybusiness.googleapis.com/v4/${locationPath}/reviews`;
 
   console.log(`[BACKGROUND SYNC] Fetching GMB reviews for org ${orgId}...`);
-  const response = await axios.get(reviewsUrl, {
-    headers: { Authorization: `Bearer ${token}` }
-  });
+  
+  // Handle full pagination to ensure all reviews (e.g. 50+ reviews) are fetched
+  const gmbReviews: any[] = [];
+  let pageToken: string | undefined = undefined;
+  let pageCount = 0;
 
-  const gmbReviews = response.data.reviews || [];
-  console.log(`[BACKGROUND SYNC] Found ${gmbReviews.length} reviews from Google.`);
+  do {
+    pageCount++;
+    const params: any = { pageSize: 50 };
+    if (pageToken) {
+      params.pageToken = pageToken;
+    }
+
+    const response = await axios.get(reviewsUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+      params
+    });
+
+    const pageReviews = response.data.reviews || [];
+    gmbReviews.push(...pageReviews);
+    pageToken = response.data.nextPageToken;
+    console.log(`[BACKGROUND SYNC] Page ${pageCount}: fetched ${pageReviews.length} reviews, nextPageToken: ${Boolean(pageToken)}`);
+  } while (pageToken);
+
+  console.log(`[BACKGROUND SYNC] Found a total of ${gmbReviews.length} reviews from Google.`);
 
   let syncedCount = 0;
 
@@ -224,6 +278,7 @@ export async function syncGmbReviews(orgId: string, io?: any) {
         data: {
           id: gmbReview.reviewId,
           organizationId: orgId,
+          accountId: config.id || null,
           customerName: gmbReview.reviewer?.displayName || "Google Maps Reviewer",
           rating: mapStarRatingToNumber(gmbReview.starRating),
           comment: gmbReview.comment || "",
@@ -239,6 +294,7 @@ export async function syncGmbReviews(orgId: string, io?: any) {
       currentReviewRecord = await prisma.googleReview.update({
         where: { id: gmbReview.reviewId },
         data: {
+          accountId: config.id || existingReview.accountId || null,
           customerName: gmbReview.reviewer?.displayName || existingReview.customerName,
           rating: mapStarRatingToNumber(gmbReview.starRating),
           comment: gmbReview.comment || existingReview.comment,
@@ -250,6 +306,29 @@ export async function syncGmbReviews(orgId: string, io?: any) {
 
     if (!gmbReview.reviewReply?.comment && (!currentReviewRecord.replyText || currentReviewRecord.replyStatus === "UNREPLIED")) {
       await executeAutoReplyIfApplicable(currentReviewRecord, config);
+    }
+  }
+
+  // Prune any reviews that were deleted on Google Maps so CRM review count matches Google 100%
+  const liveReviewIds = gmbReviews.map((r: any) => r.reviewId).filter(Boolean);
+  if (liveReviewIds.length > 0) {
+    try {
+      const pruneWhere: any = {
+        organizationId: orgId,
+        source: "GOOGLE",
+        id: { notIn: liveReviewIds }
+      };
+      if (config.id) {
+        pruneWhere.OR = [{ accountId: config.id }, { accountId: null }];
+      }
+      const pruned = await prisma.googleReview.deleteMany({
+        where: pruneWhere
+      });
+      if (pruned.count > 0) {
+        console.log(`[BACKGROUND SYNC] Pruned ${pruned.count} reviews deleted/removed on Google Maps.`);
+      }
+    } catch (pruneErr: any) {
+      console.warn("[BACKGROUND SYNC] Error pruning removed Google reviews:", pruneErr.message);
     }
   }
 

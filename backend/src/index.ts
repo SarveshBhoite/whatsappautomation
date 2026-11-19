@@ -260,8 +260,8 @@ async function runBackgroundGmbSync() {
     for (const config of configs) {
       if (!config.googleRefreshToken || !config.googleLocationId) continue;
       try {
-        console.log(`[BACKGROUND SCHEDULER] Syncing Organization ID: ${config.organizationId}`);
-        const result = await syncGmbReviews(config.organizationId, io);
+        console.log(`[BACKGROUND SCHEDULER] Syncing Organization ID: ${config.organizationId}, Account ID: ${config.id}`);
+        const result = await syncGmbReviews(config.organizationId, io, config.id);
         console.log(`[BACKGROUND SCHEDULER] Sync successful for ${config.organizationId}. Synced ${result.syncedCount} new reviews.`);
 
         // Also sync GMB posts from Google into local DB
