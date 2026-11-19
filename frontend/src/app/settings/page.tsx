@@ -1759,7 +1759,7 @@ print(res.json())`;
       "pages_manage_metadata",
       "pages_read_engagement"
     ].join(",");
-    const configId = process.env.NEXT_PUBLIC_META_INSTAGRAM_CONFIG_ID || "";
+    const configId = process.env.NEXT_PUBLIC_META_INSTAGRAM_CONFIG_ID || "2931873633833526";
 
     const appId = process.env.NEXT_PUBLIC_META_APP_ID || "36702477879366478";
     const targetOrigin = window.location.origin.startsWith("https://")
@@ -1772,11 +1772,11 @@ print(res.json())`;
     const encodedScopes = encodeURIComponent(INSTAGRAM_SCOPES);
     const nonce = Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
 
-    let oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&auth_type=rerequest&return_scopes=true&state=${nonce}`;
+    let oauthUrl: string;
     if (configId) {
-      oauthUrl += `&config_id=${configId}`;
+      oauthUrl = `https://www.facebook.com/dialog/oauth?client_id=${appId}&config_id=${configId}&display=popup&override_default_response_type=true&redirect_uri=${redirectUri}&response_type=code&state=${nonce}&auth_type=rerequest`;
     } else {
-      oauthUrl += `&scope=${encodedScopes}`;
+      oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&response_type=code&auth_type=rerequest&return_scopes=true&state=${nonce}&scope=${encodedScopes}`;
     }
 
     const width = 600;
