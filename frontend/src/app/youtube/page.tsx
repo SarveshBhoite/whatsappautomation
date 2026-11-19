@@ -715,28 +715,7 @@ export default function Dashboard() {
     setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
   };
 
-  const sendMockMediaMessage = async (type: "image" | "document", content: string, filename?: string) => {
-    if (!activeConv) return;
-    setShowMediaMenu(false);
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/messages/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: activeConv.id,
-          messageType: type,
-          content,
-          filename
-        })
-      });
-      if (res.ok) {
-        fetchConversations();
-        fetchMessages(activeConv.id);
-      }
-    } catch (err) {
-      console.error("Failed to send mock media message:", err);
-    }
-  };
+
 
 
 
