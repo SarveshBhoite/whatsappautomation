@@ -181,10 +181,9 @@ export class YouTubeService {
           });
         }
 
-        // Check if top comment exists as a message in the DB
-        let topMessage = await prisma.message.findFirst({
+        // Check if top comment exists anywhere in the DB (waMessageId is globally unique)
+        let topMessage = await prisma.message.findUnique({
           where: {
-            conversationId: conversation.id,
             waMessageId: topComment.id
           }
         });
@@ -192,25 +191,33 @@ export class YouTubeService {
         let newInboundMessageId: string | null = null;
 
         if (!topMessage) {
-          const savedMsg = await prisma.message.create({
-            data: {
-              conversationId: conversation.id,
-              direction: "inbound",
-              messageType: "text",
-              content: textContent,
-              waMessageId: topComment.id,
-              status: "read",
-              createdAt: timestamp
-            }
-          });
-          topMessage = savedMsg;
-          newInboundMessageId = savedMsg.id;
+          try {
+            const savedMsg = await prisma.message.create({
+              data: {
+                conversationId: conversation.id,
+                direction: "inbound",
+                messageType: "text",
+                content: textContent,
+                waMessageId: topComment.id,
+                status: "read",
+                createdAt: timestamp
+              }
+            });
+            topMessage = savedMsg;
+            newInboundMessageId = savedMsg.id;
 
-          // Broadcast real-time
-          io.to(organizationId).emit("new-message", {
-            conversationId: conversation.id,
-            message: savedMsg
-          });
+            // Broadcast real-time
+            io.to(organizationId).emit("new-message", {
+              conversationId: conversation.id,
+              message: savedMsg
+            });
+          } catch (createErr: any) {
+            if (createErr.code === "P2002") {
+              console.log(`[YOUTUBE SYNC] Comment ${topComment.id} already exists, skipping duplicate creation.`);
+            } else {
+              throw createErr;
+            }
+          }
         }
 
         // Sync replies from the thread item if any exist in the response
@@ -223,37 +230,44 @@ export class YouTubeService {
           const replyText = reply.snippet.textOriginal || "";
           const replyTimestamp = new Date(reply.snippet.publishedAt || Date.now());
 
-          let replyMessage = await prisma.message.findFirst({
+          let replyMessage = await prisma.message.findUnique({
             where: {
-              conversationId: conversation.id,
               waMessageId: reply.id
             }
           });
 
           if (!replyMessage) {
-            const savedReply = await prisma.message.create({
-              data: {
-                conversationId: conversation.id,
-                direction: isOutbound ? "outbound" : "inbound",
-                messageType: "text",
-                content: replyText,
-                waMessageId: reply.id,
-                status: "read",
-                senderName: isOutbound ? "Agent" : null,
-                createdAt: replyTimestamp
+            try {
+              const savedReply = await prisma.message.create({
+                data: {
+                  conversationId: conversation.id,
+                  direction: isOutbound ? "outbound" : "inbound",
+                  messageType: "text",
+                  content: replyText,
+                  waMessageId: reply.id,
+                  status: "read",
+                  senderName: isOutbound ? "Agent" : null,
+                  createdAt: replyTimestamp
+                }
+              });
+              replyMessage = savedReply;
+
+              if (!isOutbound) {
+                newInboundMessageId = savedReply.id;
               }
-            });
-            replyMessage = savedReply;
 
-            if (!isOutbound) {
-              newInboundMessageId = savedReply.id;
+              // Broadcast real-time
+              io.to(organizationId).emit("new-message", {
+                conversationId: conversation.id,
+                message: savedReply
+              });
+            } catch (createErr: any) {
+              if (createErr.code === "P2002") {
+                console.log(`[YOUTUBE SYNC] Reply ${reply.id} already exists, skipping duplicate creation.`);
+              } else {
+                throw createErr;
+              }
             }
-
-            // Broadcast real-time
-            io.to(organizationId).emit("new-message", {
-              conversationId: conversation.id,
-              message: savedReply
-            });
           }
         }
 
