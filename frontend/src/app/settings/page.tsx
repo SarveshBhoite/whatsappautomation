@@ -1751,10 +1751,10 @@ print(res.json())`;
 
     setIgEmbeddedConnecting(true);
 
+    // Request only approved public permissions so any external organization or user can connect
     const INSTAGRAM_SCOPES = [
       "instagram_basic",
       "instagram_manage_messages",
-      "instagram_manage_comments",
       "pages_show_list",
       "pages_manage_metadata",
       "pages_read_engagement"
