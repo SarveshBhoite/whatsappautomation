@@ -8,6 +8,7 @@ import { InstagramCommentEngine } from "../services/instagramCommentEngine";
 import { instagramCommentsFeed } from "../routes/admin";
 
 const processedComments = new Set<string>();
+const processedMids = new Set<string>();
 
 // GET: Webhook Verification
 export const verifyWebhook = async (req: Request, res: Response) => {
@@ -161,6 +162,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
           }
 
           const mid = message.mid;
+          if (mid) {
+            if (processedMids.has(mid)) {
+              console.log(`[INSTAGRAM WEBHOOK] Skipping duplicate incoming mid: ${mid}`);
+              continue;
+            }
+            processedMids.add(mid);
+            if (processedMids.size > 2000) {
+              const firstVal = processedMids.values().next().value;
+              if (firstVal) processedMids.delete(firstVal);
+            }
+          }
+
           const isEcho = message.is_echo === true;
           const timestamp = new Date(messagingObj.timestamp || Date.now());
 
@@ -249,13 +262,8 @@ export const handleWebhook = async (req: Request, res: Response) => {
           organizationId,
           platform: "instagram",
           customerPhone,
-          OR: [
-            { accountHandle: currentHandle },
-            { accountHandle: igConfig.instagramAccountId },
-            ...(igConfig.username ? [{ accountHandle: igConfig.username }] : []),
-            { accountHandle: null }
-          ]
         },
+        orderBy: { updatedAt: "desc" }
       });
 
       let contactName = `Instagram User (${customerPhone.substring(0, 5)}...)`;

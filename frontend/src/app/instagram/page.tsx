@@ -798,6 +798,11 @@ export default function Dashboard() {
 
     // Handle Inbound/Outbound Messages
     socket.on("new-message", (data: { conversationId: string; message: Message; conversation?: any }) => {
+      // Platform isolation: if the message does not belong to Instagram, ignore it on the Instagram page!
+      if (data.conversation?.platform && data.conversation.platform !== "instagram") {
+        return;
+      }
+
       const currentActiveConv = activeConvRef.current;
       const isCurrentlyActive = currentActiveConv && currentActiveConv.id === data.conversationId;
 
@@ -838,6 +843,11 @@ export default function Dashboard() {
           const rest = prev.filter((_, i) => i !== index);
           return [updatedTarget, ...rest];
         } else {
+          // If conversation wasn't in list and isn't Instagram, do NOT insert
+          if (data.conversation && data.conversation.platform !== "instagram") {
+            return prev;
+          }
+
           // Brand new conversation from Instagram! Place immediately at the top
           const newConv: Conversation = data.conversation ? {
             ...data.conversation,
