@@ -441,7 +441,8 @@ export default function Dashboard() {
   const [gmailAccounts, setGmailAccounts] = useState<any[]>([]);
 
   // Google GMB Config
-  const [googleConfig, setGoogleConfig] = useState({
+  const [googleConfig, setGoogleConfig] = useState<any>({
+    id: "",
     locationName: "",
     googlePlaceId: "",
     googleReviewUrl: "",
@@ -2372,27 +2373,32 @@ print(res.json())`;
     window.location.href = `${BACKEND_URL}/api/youtube/oauth/connect?orgId=${getOrgId()}&redirect=${window.location.pathname}`;
   };
 
-  const fetchGoogleConfig = async () => {
+  const fetchGoogleConfig = async (accountId?: string) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/gmb/config?orgId=${getOrgId()}`);
+      const targetAccId = accountId || selectedGmbLocId;
+      const query = new URLSearchParams({ orgId: getOrgId() });
+      if (targetAccId) query.append("accountId", targetAccId);
+      const res = await fetch(`${BACKEND_URL}/api/gmb/config?${query.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        if (data) {
-          setGoogleConfig(data);
-          let accountId = "";
-          let locationId = data.googleLocationId || "";
-          if (locationId.startsWith("accounts/") && locationId.includes("/locations/")) {
-            const parts = locationId.split("/");
-            accountId = parts[1] || "";
-            locationId = parts[3] || "";
-          } else if (locationId.includes("locations/")) {
-            locationId = locationId.replace("locations/", "");
+        const target = data?.config || data;
+        if (target) {
+          setGoogleConfig(target);
+          let accId = "";
+          let locId = target.googleLocationId || "";
+          if (locId.startsWith("accounts/") && locId.includes("/locations/")) {
+            const parts = locId.split("/");
+            accId = parts[1] || "";
+            locId = parts[3] || "";
+          } else if (locId.includes("locations/")) {
+            locId = locId.replace("locations/", "");
           }
-          setFormGoogleAccountId(accountId);
-          setFormGoogleLocationId(locationId);
-          setFormGoogleAdsCustomerId(data.googleAdsCustomerId || "");
+          setFormGoogleAccountId(accId);
+          setFormGoogleLocationId(locId);
+          setFormGoogleAdsCustomerId(target.googleAdsCustomerId || "");
         } else {
           setGoogleConfig({
+            id: "",
             locationName: "",
             googlePlaceId: "",
             googleReviewUrl: "",
@@ -2436,6 +2442,7 @@ print(res.json())`;
         },
         body: JSON.stringify({ 
           orgId: getOrgId(), 
+          accountId: selectedGmbLocId || googleConfig?.id,
           ...googleConfig,
           googleLocationId: finalLocationId,
           googleAdsCustomerId: formGoogleAdsCustomerId
@@ -2715,7 +2722,7 @@ print(res.json())`;
       });
       if (res.ok) {
         alert("✓ Google Business location disconnected and removed successfully.");
-        setGoogleConfig(prev => ({
+        setGoogleConfig((prev: any) => ({
           ...prev,
           googleRefreshToken: "",
           googleLocationId: "",
@@ -5500,18 +5507,32 @@ print(res.json())`;
                 window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/settings?tab=gmb&source=gmb`;
               }
             }}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-600/20 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-600/20 transition-all cursor-pointer"
           >
-            <RefreshCw className="h-4 w-4" />
-            <span>{googleConfig?.googleRefreshToken ? "Reconnect Google Account" : "Connect GMB with Google"}</span>
+            <Plus className="h-4 w-4 stroke-[2.5]" />
+            <span>Link Additional Google Account</span>
           </button>
           {googleConfig?.googleRefreshToken && (
             <button
               type="button"
-              onClick={() => handleDisconnectGoogle()}
-              className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/settings?tab=gmb&source=gmb`;
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
             >
-              Disconnect
+              <RefreshCw className="h-3.5 w-3.5 text-amber-600" />
+              <span>Reconnect</span>
+            </button>
+          )}
+          {googleConfig?.googleRefreshToken && (
+            <button
+              type="button"
+              onClick={() => handleDisconnectGoogle()}
+              className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+            >
+              Disconnect Active
             </button>
           )}
         </div>
@@ -5623,13 +5644,70 @@ print(res.json())`;
             </p>
           </div>
         </div>
-        <Link href="/reviews" className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
-          <span>Open Live Reviews Dashboard</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.location.href = `${BACKEND_URL}/api/gmb/oauth/connect?orgId=${getOrgId()}&redirect=/settings?tab=reviews&source=gmb`;
+              }
+            }}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Link Additional GMB Account</span>
+          </button>
+          <Link href="/reviews" className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer">
+            <span>Open Reviews Dashboard</span>
+            <ExternalLink className="w-3.5 h-3.5 text-amber-600" />
+          </Link>
+        </div>
       </div>
 
+      {/* Dynamic Account Location Selector for Reviews & QR Setup */}
+      {gmbAccountsList.length > 0 && (
+        <div className="bg-white/80 border border-amber-200/90 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <Store className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="font-extrabold text-slate-900">Select Location to Configure:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {gmbAccountsList.map((loc) => {
+              const isSelected = (selectedGmbLocId && loc.id === selectedGmbLocId) || (!selectedGmbLocId && (loc.id === googleConfig?.id || loc.isDefault));
+              return (
+                <button
+                  key={loc.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedGmbLocId(loc.id);
+                    fetchGoogleConfig(loc.id);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200"
+                  }`}
+                >
+                  <span>{loc.locationName || "Google Location"}</span>
+                  {loc.isDefault && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-extrabold ${isSelected ? "bg-amber-700 text-amber-100" : "bg-amber-100 text-amber-800"}`}>
+                      Primary
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <form onSubmit={saveGoogleConfig} className="bg-white border border-amber-200/80 rounded-2xl p-5 space-y-4">
+        {googleConfig?.locationName && (
+          <div className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-center gap-2">
+            <Check className="w-3.5 h-3.5 text-amber-600" />
+            <span>Configuring reviews & QR code for: <strong className="text-slate-900">{googleConfig.locationName}</strong></span>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-700 font-semibold">Google Place ID (Direct Map Pin)</label>

@@ -401,7 +401,7 @@ router.get("/oauth/connect", (req, res) => {
     // Pass orgId, redirect path, and source in the state parameter
     const source = (req.query.source as string) || (redirectPath.startsWith("/ads") ? "google_ads" : "crm");
     const statePayload = JSON.stringify({ orgId, redirect: redirectPath, source });
-    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent&state=${encodeURIComponent(statePayload)}`;
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=select_account%20consent&state=${encodeURIComponent(statePayload)}`;
     
     res.redirect(oauthUrl);
   } catch (error: any) {
