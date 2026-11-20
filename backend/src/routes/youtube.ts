@@ -765,7 +765,7 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
 
     const channelId = config.channelId;
 
-    // 1. Fetch channel uploads playlist ID
+    // 1. Fetch channel uploads playlist ID and native tab playlist IDs (UULF for Videos, UUSH for Shorts)
     let uploadsPlaylistId = `UU${channelId.length > 2 ? channelId.substring(2) : channelId}`;
     try {
       const chRes = await axios.get(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}`, {
@@ -779,7 +779,59 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
       console.warn("Notice fetching channel uploads playlist ID:", e.message);
     }
 
-    // 2. Fetch video IDs from channel uploads playlist with pagination
+    // 2. Query YouTube's official native playlists for exact classification:
+    // UULF... is YouTube's dedicated playlist containing only long-form "Videos"
+    // UUSH... is YouTube's dedicated playlist containing only "Shorts"
+    const channelSuffix = channelId.startsWith("UC") ? channelId.substring(2) : channelId;
+    const nativeVideosPlaylistId = `UULF${channelSuffix}`;
+    const nativeShortsPlaylistId = `UUSH${channelSuffix}`;
+
+    const nativeVideoIdSet = new Set<string>();
+    const nativeShortIdSet = new Set<string>();
+
+    try {
+      let pageTokenV = "";
+      do {
+        const vRes = await axios.get(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${nativeVideosPlaylistId}&maxResults=50${pageTokenV ? `&pageToken=${pageTokenV}` : ""}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          validateStatus: () => true
+        });
+        if (vRes.status === 200 && vRes.data.items) {
+          vRes.data.items.forEach((it: any) => {
+            const vid = it.contentDetails?.videoId;
+            if (vid) nativeVideoIdSet.add(vid);
+          });
+          pageTokenV = vRes.data.nextPageToken || "";
+        } else {
+          break;
+        }
+      } while (pageTokenV && nativeVideoIdSet.size < 250);
+    } catch (err: any) {
+      console.warn("Notice querying UULF videos playlist:", err.message);
+    }
+
+    try {
+      let pageTokenS = "";
+      do {
+        const sRes = await axios.get(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&playlistId=${nativeShortsPlaylistId}&maxResults=50${pageTokenS ? `&pageToken=${pageTokenS}` : ""}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          validateStatus: () => true
+        });
+        if (sRes.status === 200 && sRes.data.items) {
+          sRes.data.items.forEach((it: any) => {
+            const vid = it.contentDetails?.videoId;
+            if (vid) nativeShortIdSet.add(vid);
+          });
+          pageTokenS = sRes.data.nextPageToken || "";
+        } else {
+          break;
+        }
+      } while (pageTokenS && nativeShortIdSet.size < 250);
+    } catch (err: any) {
+      console.warn("Notice querying UUSH shorts playlist:", err.message);
+    }
+
+    // Fetch video IDs from channel uploads playlist with pagination
     let rawVideoIds: string[] = [];
     let pageToken = "";
     try {
@@ -796,7 +848,11 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
       console.warn("Notice fetching playlistItems from uploads playlist:", e.message);
     }
 
-    // Supplementary search query to ensure all videos are captured
+    // Also include any IDs discovered from native playlist checks
+    nativeVideoIdSet.forEach((id) => { if (!rawVideoIds.includes(id)) rawVideoIds.push(id); });
+    nativeShortIdSet.forEach((id) => { if (!rawVideoIds.includes(id)) rawVideoIds.push(id); });
+
+    // Supplementary search query to ensure unlisted/recent uploads are captured
     try {
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=50&order=date&type=video`;
       const searchRes = await axios.get(searchUrl, {
@@ -834,62 +890,56 @@ router.get("/analytics/videos-shorts", async (req: Request, res: Response) => {
     const videosList: any[] = [];
     const shortsList: any[] = [];
 
-    await Promise.all(
-      videoItems.map(async (item: any) => {
-        const durationSec = parseIsoDuration(item.contentDetails?.duration);
-        const title = item.snippet?.title || "Untitled";
-        const titleLower = title.toLowerCase();
-        const descLower = (item.snippet?.description || "").toLowerCase();
-        const hasShortTag = titleLower.includes("#shorts") || titleLower.includes("#short") || descLower.includes("#shorts") || descLower.includes("#short");
+    videoItems.forEach((item: any) => {
+      const durationSec = parseIsoDuration(item.contentDetails?.duration);
+      const title = item.snippet?.title || "Untitled";
+      const titleLower = title.toLowerCase();
+      const descLower = (item.snippet?.description || "").toLowerCase();
+      const hasShortTag = titleLower.includes("#shorts") || titleLower.includes("#short") || descLower.includes("#shorts") || descLower.includes("#short");
 
-        let isShort = false;
-        if (hasShortTag) {
-          isShort = true;
-        } else if (durationSec > 180) {
-          isShort = false;
-        } else {
-          // Check YouTube's official shorts endpoint: returns 200 for Shorts, 303 redirect to /watch for regular landscape videos
-          try {
-            const hRes = await axios.head(`https://www.youtube.com/shorts/${item.id}`, {
-              maxRedirects: 0,
-              validateStatus: () => true,
-              timeout: 2500
-            });
-            isShort = hRes.status === 200;
-          } catch {
-            isShort = durationSec > 0 && durationSec <= 60 && hasShortTag;
-          }
-        }
+      let isShort = false;
+      // 1. If present in YouTube's official native UULF (Videos) or UUSH (Shorts) playlist, use that exact truth
+      if (nativeShortIdSet.has(item.id)) {
+        isShort = true;
+      } else if (nativeVideoIdSet.has(item.id)) {
+        isShort = false;
+      } else if (hasShortTag) {
+        isShort = true;
+      } else if (durationSec > 180) {
+        isShort = false;
+      } else {
+        // Fallback: If duration is short but has no short tag, default to regular video unless explicit
+        isShort = durationSec > 0 && durationSec <= 60 && hasShortTag;
+      }
 
-        const rawLikes = Number(item.statistics?.likeCount ?? 0);
-        const likes = rawLikes < 0 ? 0 : rawLikes;
-        const views = Number(item.statistics?.viewCount || 0);
-        const comments = Number(item.statistics?.commentCount || 0);
+      const rawLikes = Number(item.statistics?.likeCount ?? 0);
+      const likes = rawLikes < 0 ? 0 : rawLikes;
+      const views = Number(item.statistics?.viewCount || 0);
+      const comments = Number(item.statistics?.commentCount || 0);
 
-        const videoData = {
-          id: item.id,
-          title,
-          description: item.snippet?.description || "",
-          thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || "",
-          publishedAt: item.snippet?.publishedAt,
-          durationSec,
-          isShort,
-          views,
-          likes,
-          likesHidden: rawLikes < 0,
-          comments,
-          engagementRate: views > 0 
-            ? parseFloat((((likes + comments) / views) * 100).toFixed(2))
-            : 0
-        };
+      const videoData = {
+        id: item.id,
+        title,
+        description: item.snippet?.description || "",
+        thumbnail: item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || "",
+        publishedAt: item.snippet?.publishedAt,
+        durationSec,
+        isShort,
+        views,
+        likes,
+        likesHidden: rawLikes < 0,
+        comments,
+        engagementRate: views > 0 
+          ? parseFloat((((likes + comments) / views) * 100).toFixed(2))
+          : 0
+      };
 
-        if (isShort) {
-          shortsList.push(videoData);
-        } else {
-          videosList.push(videoData);
-        }
-      })
-    );
+      if (isShort) {
+        shortsList.push(videoData);
+      } else {
+        videosList.push(videoData);
+      }
+    });
 
     const videoViews = videosList.reduce((acc, curr) => acc + curr.views, 0);
     const shortViews = shortsList.reduce((acc, curr) => acc + curr.views, 0);
