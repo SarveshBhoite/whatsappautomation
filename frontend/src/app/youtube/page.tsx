@@ -1958,9 +1958,14 @@ export default function Dashboard() {
 
                 {/* Top Performing Videos */}
                 <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
-                  <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-3">
-                    <Tv className="h-4.5 w-4.5 text-red-600" /> Top Performing Videos (Last 30 Days)
-                  </h3>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-sm text-slate-900 tracking-tight flex items-center gap-1.5">
+                      <Tv className="h-4.5 w-4.5 text-red-600" /> Top Performing Videos ({analyticsDays === "lifetime" ? "All Time" : `Last ${analyticsDays} Days`})
+                    </h3>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      Sorted by highest views in this period
+                    </span>
+                  </div>
                   <div className="divide-y divide-slate-100">
                     {analyticsData.topVideos && analyticsData.topVideos.length > 0 ? (
                       analyticsData.topVideos.map((video) => (
