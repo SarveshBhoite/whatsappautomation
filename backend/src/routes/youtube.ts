@@ -470,13 +470,22 @@ router.get("/analytics", async (req: Request, res: Response) => {
 
     const channelId = config.channelId;
 
-    // Get summary report for last 30 days (YouTube Analytics API requires a 2-day processing latency safety window)
+    // Date range calculation (default 30 days, or 7, 28, 90, 365, lifetime)
+    const daysParam = (req.query.days as string) || "30";
+    const isLifetime = daysParam === "0" || daysParam === "lifetime";
+    const days = isLifetime ? 3650 : parseInt(daysParam, 10);
+
     const endDate = new Date();
     endDate.setDate(endDate.getDate() - 2);
     const endDateStr = formatDateString(endDate);
 
     const startDate = new Date(endDate);
-    startDate.setDate(startDate.getDate() - 30);
+    if (isLifetime) {
+      // Query past 3 years (or channel creation) to cover full history without 2005 empty padding
+      startDate.setFullYear(startDate.getFullYear() - 3);
+    } else {
+      startDate.setDate(startDate.getDate() - days);
+    }
     const startDateStr = formatDateString(startDate);
 
     // Call YouTube Analytics API
@@ -493,7 +502,7 @@ router.get("/analytics", async (req: Request, res: Response) => {
       }
     });
 
-    // Fetch daily metrics for timeline chart
+    // Fetch daily metrics for timeline chart (always use "day" dimension for continuous date series)
     const dailyRes = await axios.get(analyticsUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
       params: {
@@ -919,12 +928,23 @@ router.get("/analytics/demographics", async (req: Request, res: Response) => {
     }
 
     const channelId = config.channelId;
+
+    // Date range calculation (default 30 days, or 7, 28, 90, 365, lifetime)
+    const daysParam = (req.query.days as string) || "30";
+    const isLifetime = daysParam === "0" || daysParam === "lifetime";
+    const days = isLifetime ? 3650 : parseInt(daysParam, 10);
+
     const endDate = new Date();
     endDate.setDate(endDate.getDate() - 2);
     const endDateStr = formatDateString(endDate);
 
     const startDate = new Date(endDate);
-    startDate.setDate(startDate.getDate() - 30);
+    if (isLifetime) {
+      // Query past 3 years (or channel creation) to cover full history without 2005 empty padding
+      startDate.setFullYear(startDate.getFullYear() - 3);
+    } else {
+      startDate.setDate(startDate.getDate() - days);
+    }
     const startDateStr = formatDateString(startDate);
 
     const analyticsUrl = "https://youtubeanalytics.googleapis.com/v2/reports";

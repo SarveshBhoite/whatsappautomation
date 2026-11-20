@@ -416,6 +416,10 @@ export default function Dashboard() {
   // Audience Demographics & Traffic Sources State
   const [demographicsData, setDemographicsData] = useState<any | null>(null);
   const [loadingDemographics, setLoadingDemographics] = useState(false);
+  const [demographicsDays, setDemographicsDays] = useState<number | string>(30);
+
+  // Analytics Time Range State
+  const [analyticsDays, setAnalyticsDays] = useState<number | string>(30);
 
   // Comment Replies Text Inputs State
   const [replyInputText, setReplyInputText] = useState<{ [commentId: string]: string }>({});
@@ -823,11 +827,11 @@ export default function Dashboard() {
     } else if (activeTab === "comparative") {
       fetchComparative(comparativeDays);
     } else if (activeTab === "demographics") {
-      fetchDemographics();
+      fetchDemographics(demographicsDays);
     } else if (activeTab === "analytics") {
-      fetchAnalytics();
+      fetchAnalytics(analyticsDays);
     }
-  }, [activeTab, comparativeDays]);
+  }, [activeTab, comparativeDays, demographicsDays, analyticsDays]);
 
   // Refetch flows when selected platform changes
   useEffect(() => {
@@ -865,12 +869,12 @@ export default function Dashboard() {
     }
   };
 
-  const fetchAnalytics = async (accountId?: string) => {
+  const fetchAnalytics = async (days: number | string = analyticsDays, accountId?: string) => {
     setLoadingAnalytics(true);
     setAnalyticsError(null);
     try {
       const targetId = accountId || selectedYoutubeAccountId;
-      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics${targetId ? `?accountId=${targetId}` : ""}`, {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics?days=${days}${targetId ? `&accountId=${targetId}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -958,11 +962,11 @@ export default function Dashboard() {
     }
   };
 
-  const fetchDemographics = async (accountId?: string) => {
+  const fetchDemographics = async (days: number | string = demographicsDays, accountId?: string) => {
     setLoadingDemographics(true);
     try {
       const targetId = accountId || selectedYoutubeAccountId;
-      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/demographics${targetId ? `?accountId=${targetId}` : ""}`, {
+      const res = await fetch(`${BACKEND_URL}/api/youtube/analytics/demographics?days=${days}${targetId ? `&accountId=${targetId}` : ""}`, {
         headers: { "x-organization-id": getOrgId() }
       });
       if (res.ok) {
@@ -1155,10 +1159,10 @@ export default function Dashboard() {
         body: JSON.stringify({ accountId })
       });
       await fetchYoutubeConfig(accountId);
-      fetchAnalytics(accountId);
+      fetchAnalytics(analyticsDays, accountId);
       fetchVideosShorts(accountId);
       fetchComparative(comparativeDays, accountId);
-      fetchDemographics(accountId);
+      fetchDemographics(demographicsDays, accountId);
     } catch (err) {
       console.warn("Error switching YouTube account:", err);
     }
@@ -1616,20 +1620,50 @@ export default function Dashboard() {
         {/* TAB 1: CHANNEL OVERVIEW ANALYTICS */}
         {activeTab === "analytics" && (
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
               <div className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shadow-2xs">
                   <BarChart2 className="h-5 w-5" />
                 </div>
-                <h2 className="text-xl font-extrabold text-slate-900 font-sans tracking-tight">YouTube Channel Performance Overview</h2>
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-900 font-sans tracking-tight">YouTube Channel Performance Overview</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">High-level viewership metrics, growth momentum, and daily trend tracking.</p>
+                </div>
               </div>
-              <button
-                onClick={() => fetchAnalytics()}
-                disabled={loadingAnalytics}
-                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingAnalytics ? "animate-spin text-red-600" : ""}`} /> Refresh Analytics
-              </button>
+              <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1">
+                  {[
+                    { label: "7D", val: 7 },
+                    { label: "28D", val: 28 },
+                    { label: "90D", val: 90 },
+                    { label: "365D", val: 365 },
+                    { label: "Lifetime", val: "lifetime" }
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        setAnalyticsDays(item.val);
+                        fetchAnalytics(item.val);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        analyticsDays === item.val
+                          ? "bg-white text-red-600 shadow-2xs border border-slate-200/60"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => fetchAnalytics(analyticsDays)}
+                  disabled={loadingAnalytics}
+                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingAnalytics ? "animate-spin text-red-600" : ""}`} /> Refresh
+                </button>
+              </div>
             </div>
 
             {loadingAnalytics ? (
@@ -1660,7 +1694,9 @@ export default function Dashboard() {
                     <span className="text-2xl font-black text-slate-900">
                       {Number(analyticsData.summary?.rows?.[0]?.[0] || 0).toLocaleString()}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">Last 30 days summary</span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {analyticsDays === "lifetime" ? "All-time summary" : `Last ${analyticsDays} days summary`}
+                    </span>
                   </div>
 
                   <div className="bg-white border border-slate-200 p-5 rounded-3xl flex flex-col gap-1.5 shadow-xs">
@@ -1703,34 +1739,220 @@ export default function Dashboard() {
                 </div>
 
                 {/* Interactive Graph Timeline / Grid */}
-                <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs">
-                  <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-wider mb-4">Views Timeline</h3>
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <h3 className="font-extrabold text-sm text-slate-900 tracking-tight flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4 text-red-600" /> Views &amp; Viewership Trend
+                      </h3>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {analyticsDays === "lifetime" ? "Daily view counts over channel history" : `Daily view trends over the last ${analyticsDays} days`}
+                      </p>
+                    </div>
+                    {analyticsData.daily?.rows && analyticsData.daily.rows.length > 0 && (
+                      <div className="flex items-center gap-3 text-xs">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                          <span className="h-2.5 w-2.5 rounded-full bg-red-600 inline-block" />
+                          <span>All-Time Views: {Number(analyticsData.summary?.rows?.[0]?.[0] || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {analyticsData.daily?.rows && analyticsData.daily.rows.length > 0 ? (
-                    <div className="h-48 w-full flex items-end justify-between gap-1 pt-6 pb-2 px-2 border-b border-l border-slate-200">
-                      {analyticsData.daily.rows.map((row: any, idx: number) => {
-                        const maxViews = Math.max(...(analyticsData.daily.rows.map((r: any) => Number(r[1] || 0))) || [1]);
-                        const val = Number(row[1] || 0);
-                        const pct = (val / (maxViews || 1)) * 100;
+                    <div className="space-y-2 pt-2">
+                      {/* Chart Area with Gridlines and Y-Axis scale */}
+                      {(() => {
+                        const rawRows = analyticsData.daily.rows;
+
+                        // Smart clustering logic based on the number of data points
+                        // - 7D / <= 14 days: 1 bar per day
+                        // - 28D / <= 35 days: 1 bar per day (or group every 2 days if crowded)
+                        // - 90D: Group every 5-7 days (weekly buckets, ~13 bars)
+                        // - 365D: Group by month (~12 bars)
+                        // - Lifetime / > 365 days: Group by month or quarter (~12-24 bars)
+                        let displayRows: { label: string; dateRange: string; views: number; likes: number; subs: number }[] = [];
+
+                        if (rawRows.length <= 14) {
+                          // Daily
+                          displayRows = rawRows.map((r: any) => ({
+                            label: r[0]?.substring(5) || "", // "MM-DD"
+                            dateRange: r[0] || "",
+                            views: Number(r[1] || 0),
+                            likes: Number(r[2] || 0),
+                            subs: Number(r[4] || 0)
+                          }));
+                        } else if (rawRows.length <= 35) {
+                          // Daily with day number
+                          displayRows = rawRows.map((r: any) => ({
+                            label: r[0]?.substring(8) || "", // "DD"
+                            dateRange: r[0] || "",
+                            views: Number(r[1] || 0),
+                            likes: Number(r[2] || 0),
+                            subs: Number(r[4] || 0)
+                          }));
+                        } else if (rawRows.length <= 120) {
+                          // Cluster into weekly buckets (7 days per bucket)
+                          const bucketSize = 7;
+                          for (let i = 0; i < rawRows.length; i += bucketSize) {
+                            const chunk = rawRows.slice(i, i + bucketSize);
+                            const startD = chunk[0]?.[0] || "";
+                            const endD = chunk[chunk.length - 1]?.[0] || "";
+                            const viewsSum = chunk.reduce((acc: number, cur: any) => acc + Number(cur[1] || 0), 0);
+                            const likesSum = chunk.reduce((acc: number, cur: any) => acc + Number(cur[2] || 0), 0);
+                            const subsSum = chunk.reduce((acc: number, cur: any) => acc + Number(cur[4] || 0), 0);
+                            displayRows.push({
+                              label: startD.substring(5), // "MM-DD"
+                              dateRange: `${startD} to ${endD}`,
+                              views: viewsSum,
+                              likes: likesSum,
+                              subs: subsSum
+                            });
+                          }
+                        } else {
+                          // Monthly buckets (group by YYYY-MM)
+                          const monthMap: { [key: string]: { views: number; likes: number; subs: number; count: number } } = {};
+                          const monthKeys: string[] = [];
+
+                          for (const r of rawRows) {
+                            const dateStr = r[0] || "";
+                            const mKey = dateStr.substring(0, 7); // "YYYY-MM"
+                            if (!monthMap[mKey]) {
+                              monthMap[mKey] = { views: 0, likes: 0, subs: 0, count: 0 };
+                              monthKeys.push(mKey);
+                            }
+                            monthMap[mKey].views += Number(r[1] || 0);
+                            monthMap[mKey].likes += Number(r[2] || 0);
+                            monthMap[mKey].subs += Number(r[4] || 0);
+                            monthMap[mKey].count += 1;
+                          }
+
+                          // Filter out empty leading months with 0 views to show the channel's active history cleanly
+                          let activeKeys = monthKeys;
+                          const firstActiveIdx = monthKeys.findIndex((k) => monthMap[k].views > 0);
+                          if (firstActiveIdx > 0) {
+                            activeKeys = monthKeys.slice(firstActiveIdx);
+                          }
+
+                          // If still more than 24 months, group by quarter (every 3 months) or year
+                          if (activeKeys.length > 24) {
+                            const bucketSize = Math.ceil(activeKeys.length / 16);
+                            for (let i = 0; i < activeKeys.length; i += bucketSize) {
+                              const chunkKeys = activeKeys.slice(i, i + bucketSize);
+                              const viewsSum = chunkKeys.reduce((acc, k) => acc + monthMap[k].views, 0);
+                              const likesSum = chunkKeys.reduce((acc, k) => acc + monthMap[k].likes, 0);
+                              const subsSum = chunkKeys.reduce((acc, k) => acc + monthMap[k].subs, 0);
+                              const startKey = chunkKeys[0];
+                              const endKey = chunkKeys[chunkKeys.length - 1];
+                              const [sy, sm] = startKey.split("-");
+                              const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                              const mLabel = `${monthNames[parseInt(sm, 10) - 1]} '${sy.slice(2)}`;
+                              displayRows.push({
+                                label: mLabel,
+                                dateRange: `${startKey} to ${endKey}`,
+                                views: viewsSum,
+                                likes: likesSum,
+                                subs: subsSum
+                              });
+                            }
+                          } else {
+                            displayRows = activeKeys.map((mKey) => {
+                              const [year, month] = mKey.split("-");
+                              const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                              const mIndex = parseInt(month, 10) - 1;
+                              const monthLabel = `${monthNames[mIndex] || month} '${year.slice(2)}`;
+
+                              return {
+                                label: monthLabel,
+                                dateRange: `${monthNames[mIndex] || month} ${year}`,
+                                views: monthMap[mKey].views,
+                                likes: monthMap[mKey].likes,
+                                subs: monthMap[mKey].subs
+                              };
+                            });
+                          }
+                        }
+
+                        const maxViews = Math.max(...displayRows.map((r) => r.views), 1);
+                        const midViews = Math.round(maxViews / 2);
+
                         return (
-                          <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end">
-                            <div className="relative w-full flex justify-center">
-                              <span className="absolute bottom-full mb-1 bg-slate-900 text-white px-1.5 py-0.5 rounded text-[9px] scale-0 group-hover:scale-100 transition-all font-mono z-20 shadow-sm">
-                                {val} views
-                              </span>
+                          <div className="relative">
+                            {/* Y-Axis scale background lines */}
+                            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-6 pl-10 pr-2">
+                              <div className="border-b border-dashed border-slate-200 w-full flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                                <span className="-ml-10">{maxViews.toLocaleString()}</span>
+                              </div>
+                              <div className="border-b border-dashed border-slate-100 w-full flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                                <span className="-ml-10">{midViews.toLocaleString()}</span>
+                              </div>
+                              <div className="border-b border-slate-200 w-full flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                                <span className="-ml-10">0</span>
+                              </div>
                             </div>
-                            <div 
-                              className="w-full bg-red-600 group-hover:bg-red-500 rounded-t-sm transition-all"
-                              style={{ height: `${Math.max(pct, 4)}%` }}
-                            />
-                            <span className="text-[8px] text-slate-400 mt-2 font-mono hidden md:block">
-                              {row[0]?.substring(8)}
-                            </span>
+
+                            {/* Bar Columns Container */}
+                            <div className="h-56 w-full flex items-end justify-between gap-1.5 pt-6 pb-6 pl-10 pr-2">
+                              {displayRows.map((item, idx) => {
+                                const val = item.views;
+                                const likes = item.likes;
+                                const subs = item.subs;
+                                const dateRange = item.dateRange;
+                                const pct = (val / maxViews) * 100;
+                                const isPeak = val > 0 && val === maxViews;
+
+                                return (
+                                  <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end relative cursor-pointer">
+                                    {/* Hover Rich Tooltip Card */}
+                                    <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 group-hover:scale-100 scale-95 transition-all duration-150 pointer-events-none z-30">
+                                      <div className="bg-slate-900 text-white rounded-xl py-2 px-3 shadow-xl border border-slate-700/60 min-w-32 text-center">
+                                        <div className="text-[10px] text-slate-400 font-medium pb-1 border-b border-slate-800">
+                                          {dateRange}
+                                        </div>
+                                        <div className="text-sm font-black text-white pt-1">
+                                          {val.toLocaleString()} <span className="text-[10px] font-normal text-slate-300">views</span>
+                                        </div>
+                                        {likes > 0 && (
+                                          <div className="text-[10px] text-emerald-400 font-semibold mt-0.5">
+                                            +{likes} {likes === 1 ? "like" : "likes"}
+                                          </div>
+                                        )}
+                                        {subs > 0 && (
+                                          <div className="text-[10px] text-sky-400 font-semibold">
+                                            +{subs} {subs === 1 ? "subscriber" : "subscribers"}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Modern Sleek Bar */}
+                                    <div className="w-full flex items-end justify-center h-full px-0.5">
+                                      <div 
+                                        className={`w-full max-w-10 rounded-t-md transition-all duration-200 ${
+                                          val > 0
+                                            ? isPeak
+                                              ? "bg-gradient-to-t from-red-600 to-rose-400 shadow-sm shadow-red-500/30 group-hover:from-red-500 group-hover:to-rose-300"
+                                              : "bg-red-500/80 group-hover:bg-red-500"
+                                            : "bg-slate-200/50 group-hover:bg-slate-300"
+                                        }`}
+                                        style={{ height: `${val > 0 ? Math.max(pct, 8) : 4}%` }}
+                                      />
+                                    </div>
+
+                                    {/* X-Axis Date Label */}
+                                    <span className="absolute top-full mt-1.5 text-[9px] text-slate-500 font-medium truncate max-w-full">
+                                      {item.label}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         );
-                      })}
+                      })()}
                     </div>
                   ) : (
-                    <div className="text-center text-slate-500 text-xs py-10">No daily timeline statistics rows available.</div>
+                    <div className="text-center text-slate-400 text-xs py-12">No view activity data recorded for this time range.</div>
                   )}
                 </div>
 
@@ -3028,13 +3250,40 @@ export default function Dashboard() {
                   Understand your viewer age groups, top geographic regions, traffic acquisition sources, and device types.
                 </p>
               </div>
-              <button
-                onClick={() => fetchDemographics()}
-                disabled={loadingDemographics}
-                className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs transition-all"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${loadingDemographics ? "animate-spin text-red-600" : ""}`} /> Refresh Demographics
-              </button>
+              <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1">
+                  {[
+                    { label: "7D", val: 7 },
+                    { label: "28D", val: 28 },
+                    { label: "90D", val: 90 },
+                    { label: "365D", val: 365 },
+                    { label: "Lifetime", val: "lifetime" }
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        setDemographicsDays(item.val);
+                        fetchDemographics(item.val);
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        demographicsDays === item.val
+                          ? "bg-white text-red-600 shadow-2xs border border-slate-200/60"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => fetchDemographics(demographicsDays)}
+                  disabled={loadingDemographics}
+                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingDemographics ? "animate-spin text-red-600" : ""}`} /> Refresh Demographics
+                </button>
+              </div>
             </div>
 
             {loadingDemographics ? (
